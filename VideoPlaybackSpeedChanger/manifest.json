@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Video Playback Speed Changer",
+  "version": "1.0",
+  "description": "Adds an input and button to change video playback speed.",
+  "permissions": ["tabs", "activeTab", "scripting", "storage"],
+  "action": {},
+  "background": {
+    "service_worker": "background.js"
+  }
+}
