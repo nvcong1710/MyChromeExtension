@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "My Note Extension",
+  "description": "Create customizable notes on any webpage.",
+  "version": "1.0",
+  "permissions": ["activeTab"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
