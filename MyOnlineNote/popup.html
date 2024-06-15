@@ -5,39 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Note Extension</title>
     <style>
-      body {
-        font-family: Arial, sans-serif;
-        background-color: #f0f0f0;
-        padding: 20px;
+      #noteSizeForm {
+        margin-top: 20px;
       }
-      h1 {
-        font-size: 1.5em;
-      }
-      label {
-        margin-bottom: 8px;
-        display: block;
-      }
-      input[type="number"] {
-        width: 100px;
+
+      #widthInput,
+      #heightInput {
+        width: 200px;
         padding: 6px;
         margin-bottom: 10px;
         font-size: 14px;
       }
-      button {
+
+      #addNoteButton {
         padding: 10px 20px;
         background-color: #007bff;
         color: white;
         border: none;
         cursor: pointer;
         font-size: 16px;
+        margin-top: 15px;
       }
-      button:hover {
+
+      #addNoteButton:hover {
         background-color: #0056b3;
       }
     </style>
   </head>
   <body>
-    <h1>Configure Note Size</h1>
+    <h1>Cài đặt kích thước note</h1>
     <form id="noteSizeForm">
       <label for="widthInput">Width:</label>
       <input

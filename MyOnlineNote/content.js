@@ -45,7 +45,7 @@ function createNoteOnPage(width, height) {
   inputContainer.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.1)";
 
   var dragHandle = document.createElement("div");
-  dragHandle.style.width = "100%";
+  dragHandle.style.width = "calc(100% - 20px)";
   dragHandle.style.height = "30px";
   dragHandle.style.backgroundColor = "#007BFF";
   dragHandle.style.cursor = "move";
@@ -54,7 +54,7 @@ function createNoteOnPage(width, height) {
   dragHandle.style.padding = "0 10px";
 
   var closeButton = document.createElement("button");
-  closeButton.textContent = "X";
+  closeButton.textContent = "x";
   closeButton.style.width = "10%";
   closeButton.style.marginLeft = "auto";
   closeButton.style.border = "none";
@@ -78,7 +78,7 @@ function createNoteOnPage(width, height) {
   inputBox.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.1)";
   inputBox.style.outline = "none";
   inputBox.style.transition = "border-color 0.3s, box-shadow 0.3s";
-  inputBox.style.width = "100%";
+  inputBox.style.width = "calc(100% - 20px)";
   inputBox.style.height = "100%";
   inputBox.style.resize = "none";
   inputBox.style.lineHeight = "28px";
