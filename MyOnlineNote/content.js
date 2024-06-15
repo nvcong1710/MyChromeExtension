@@ -45,7 +45,8 @@ function createNoteOnPage(width, height) {
   inputContainer.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.1)";
 
   var dragHandle = document.createElement("div");
-  dragHandle.style.width = "calc(100% - 20px)";
+  dragHandle.style.width = "100%";
+  dragHandle.style.boxSizing = "border-box";
   dragHandle.style.height = "30px";
   dragHandle.style.backgroundColor = "#007BFF";
   dragHandle.style.cursor = "move";
@@ -78,7 +79,8 @@ function createNoteOnPage(width, height) {
   inputBox.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.1)";
   inputBox.style.outline = "none";
   inputBox.style.transition = "border-color 0.3s, box-shadow 0.3s";
-  inputBox.style.width = "calc(100% - 20px)";
+  inputBox.style.width = "100%";
+  inputBox.style.boxSizing = "border-box";
   inputBox.style.height = "100%";
   inputBox.style.resize = "none";
   inputBox.style.lineHeight = "28px";
