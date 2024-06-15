@@ -27,6 +27,7 @@ function createSpeedControlBox() {
   input.style.border = "1px solid #ccc";
   input.style.borderRadius = "3px";
   input.style.width = "40px";
+  input.step = "0.2";
 
   var button = document.createElement("button");
   button.innerHTML = "Set";
