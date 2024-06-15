@@ -26,10 +26,10 @@ function createSpeedControlBox() {
   input.style.padding = "5px";
   input.style.border = "1px solid #ccc";
   input.style.borderRadius = "3px";
-  input.style.width = "100px";
+  input.style.width = "40px";
 
   var button = document.createElement("button");
-  button.innerHTML = "Set Speed";
+  button.innerHTML = "Set";
   button.style.padding = "5px 10px";
   button.style.backgroundColor = "#007BFF";
   button.style.color = "#fff";
@@ -38,7 +38,7 @@ function createSpeedControlBox() {
   button.style.cursor = "pointer";
 
   var removeButton = document.createElement("button");
-  removeButton.innerHTML = "Remove";
+  removeButton.innerHTML = "X";
   removeButton.style.padding = "5px 10px";
   removeButton.style.backgroundColor = "#FF0000";
   removeButton.style.color = "#fff";
