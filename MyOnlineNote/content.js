@@ -83,7 +83,7 @@ function createNoteOnPage(width, height) {
   inputBox.style.boxSizing = "border-box";
   inputBox.style.height = "100%";
   inputBox.style.resize = "none";
-  inputBox.style.lineHeight = "28px";
+  inputBox.style.lineHeight = "18px";
   inputBox.spellcheck = false;
 
   checkCookie();
