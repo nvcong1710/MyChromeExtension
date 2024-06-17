@@ -27,6 +27,7 @@ function createSpeedControlBox() {
   input.style.border = "1px solid #ccc";
   input.style.borderRadius = "3px";
   input.style.width = "40px";
+  input.step = "0.2";
 
   var button = document.createElement("button");
   button.innerHTML = "Set";
@@ -71,12 +72,13 @@ function createSpeedControlBox() {
   document.body.appendChild(container);
 
   chrome.storage.sync.get(["videoSpeed"], function (result) {
-    if (result.videoSpeed) {
-      var video = document.querySelector("video");
-      if (video) {
-        video.playbackRate = result.videoSpeed;
-        input.value = result.videoSpeed;
-      }
-    }
+    // if (result.videoSpeed) {
+    //   var video = document.querySelector("video");
+    //   if (video) {
+    //     video.playbackRate = result.videoSpeed;
+
+    //   }
+    // }
+    input.value = result.videoSpeed;
   });
 }
