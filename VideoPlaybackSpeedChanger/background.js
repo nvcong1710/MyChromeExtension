@@ -72,13 +72,6 @@ function createSpeedControlBox() {
   document.body.appendChild(container);
 
   chrome.storage.sync.get(["videoSpeed"], function (result) {
-    // if (result.videoSpeed) {
-    //   var video = document.querySelector("video");
-    //   if (video) {
-    //     video.playbackRate = result.videoSpeed;
-
-    //   }
-    // }
     input.value = result.videoSpeed;
   });
 }

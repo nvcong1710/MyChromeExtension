@@ -8,7 +8,10 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 
 function createNoteOnPage(width, height) {
   function setCookie(name, value) {
-    document.cookie = name + "=" + (value || "");
+    let date = new Date();
+    date.setFullYear(date.getFullYear() + 100);
+    let expires = "; expires=" + date.toUTCString();
+    document.cookie = name + "=" + (value || "") + expires + "; path=/";
   }
 
   function getCookie(name) {
