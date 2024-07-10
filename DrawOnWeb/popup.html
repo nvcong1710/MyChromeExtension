@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Drawing Options</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        text-align: center;
+      }
+      h1 {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      input[type="color"],
+      input[type="range"] {
+        margin-bottom: 10px;
+      }
+      button {
+        margin-top: 10px;
+        padding: 8px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Drawing Options</h1>
+    <label for="color">Chọn màu:</label>
+    <input type="color" id="color" name="color" value="#000000" />
+
+    <label for="size">Kích thước cọ:</label>
+    <input type="range" id="size" name="size" min="1" max="10" value="2" />
+
+    <button id="apply">Áp dụng</button>
+    <button id="clear">Xoá</button>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
