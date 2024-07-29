@@ -55,7 +55,7 @@ function createSpeedControlBox() {
     } else {
       var video = document.querySelectorAll("video");
       for (var v of video) {
-        video.playbackRate = speed;
+        v.playbackRate = speed;
       }
       chrome.storage.sync.set({ videoSpeed: speed });
     }
