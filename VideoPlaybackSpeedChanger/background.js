@@ -53,11 +53,11 @@ function createSpeedControlBox() {
     if (isNaN(speed) || speed <= 0) {
       alert("Please enter a valid speed.");
     } else {
-      var video = document.querySelector("video");
-      if (video) {
+      var video = document.querySelectorAll("video");
+      for (var v of video) {
         video.playbackRate = speed;
-        chrome.storage.sync.set({ videoSpeed: speed });
       }
+      chrome.storage.sync.set({ videoSpeed: speed });
     }
   });
 
