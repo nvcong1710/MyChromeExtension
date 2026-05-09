@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "English Note Overlay (EN\u2194VI)",
+  "version": "1.8.0",
+  "description": "Floating or docked vocab note (EN\u2194VI). Dock pushes page content aside. Data saved in storage as JSON array.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "tabs",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "English Note"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-note": {
+      "suggested_key": {
+        "default": "Alt+N",
+        "mac": "Alt+N"
+      },
+      "description": "Toggle the English Note overlay"
+    }
+  },
+  "options_page": "options.html"
+}

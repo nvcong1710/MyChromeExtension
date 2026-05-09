@@ -1,0 +1,174 @@
+
+#edge-eng-note, #edge-eng-toggle, #edge-eng-dock-resizer {
+  position: fixed;
+  z-index: 2147483647;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+/* Toggle button */
+#edge-eng-toggle {
+  right: 16px;
+  bottom: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #111827;
+  color: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  cursor: pointer;
+  user-select: none;
+}
+#edge-eng-toggle:hover { filter: brightness(1.1); }
+
+/* Floating/Overlay card */
+#edge-eng-note {
+  right: 16px;
+  bottom: 76px;
+  width: 380px;
+  height: 320px;
+  min-width: 320px;
+  min-height: 260px;
+  display: none;
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  overflow: hidden;
+}
+
+/* Docked mode styles */
+#edge-eng-note.docked {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  height: 100vh;
+  width: 300px; /* default overridden by JS */
+  min-width: 260px;
+  max-width: 70vw;
+  border-radius: 0;
+  box-shadow: none;
+  border-left: 1px solid #374151;
+  border-right: none;
+}
+#edge-eng-dock-resizer {
+  top: 0; bottom: 0; right: calc(var(--dock-width, 300px)); width: 6px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+/* When floating (overlay), we custom-resize via handles so disable native resize */
+#edge-eng-note.floating {
+  resize: none;
+}
+
+/* Resize handles for overlay (floating) */
+.edge-eng-resize-handle {
+  position: absolute; background: transparent; z-index: 2147483648;
+}
+.edge-eng-handle-top { top: -2px; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+.edge-eng-handle-bottom { bottom: -2px; left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+.edge-eng-handle-left { left: -2px; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+.edge-eng-handle-right { right: -2px; top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+
+#edge-eng-note.visible { display: block; }
+
+#edge-eng-note .note-header {
+  padding: 10px 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #0b1220;
+  cursor: move;
+  border-bottom: 1px solid #1f2937;
+  user-select: none;
+}
+
+#edge-eng-note .title {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: .2px;
+  flex: 1;
+}
+
+#edge-eng-note .pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid #374151;
+  color: #cbd5e1;
+}
+
+#edge-eng-note .note-body {
+  padding: 10px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+  height: calc(100% - 46px);
+  overflow: hidden;
+}
+
+#edge-eng-note input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  color: #e5e7eb;
+  outline: none;
+}
+
+#edge-eng-note .row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+#edge-eng-note .controls {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#edge-eng-note button {
+  padding: 7px 10px;
+  background: #1f2937;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  cursor: pointer;
+}
+#edge-eng-note button:hover { filter: brightness(1.08); }
+#edge-eng-note .muted { opacity: .8; font-size: 12px; }
+
+/* List panel */
+#edge-eng-list-panel { display: none; height: 100%; overflow: hidden; }
+#edge-eng-list-panel.visible { display: block; }
+#edge-eng-list-search { margin-bottom: 8px; }
+#edge-eng-list {
+  height: calc(100% - 40px);
+  overflow: auto;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0f172a;
+}
+.edge-eng-item {
+  padding: 8px 10px;
+  border-bottom: 1px solid #1f2937;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+.edge-eng-item:hover { background: #0c1326; }
+.edge-eng-item.active { background: #0c1326; border-left: 3px solid #2563eb; }
+.edge-eng-en { font-weight: 600; }
+.edge-eng-vi { opacity: .9; }
