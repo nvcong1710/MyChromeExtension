@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "English Flashcard Sidebar",
+  "version": "1.0.0",
+  "description": "A floating sidebar to manage English flashcards (word/definition) on any webpage.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Toggle Flashcard Sidebar"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-sidebar": {
+      "suggested_key": {
+        "default": "Alt+F",
+        "mac": "Alt+F"
+      },
+      "description": "Toggle the flashcard sidebar"
+    }
+  }
+}
