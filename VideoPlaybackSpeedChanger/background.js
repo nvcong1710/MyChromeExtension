@@ -6,56 +6,80 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 function createSpeedControlBox() {
-  var container = document.createElement("div");
-  container.id = "video-speed-control !important";
-  container.style.position = "fixed !important";
-  container.style.top = "10px !important";
-  container.style.right = "10px !important";
-  container.style.zIndex = "9000 !important";
-  container.style.padding = "10px !important";
-  container.style.backgroundColor = "#fff !important";
-  container.style.border = "1px solid #ccc !important";
-  container.style.borderRadius = "5px !important";
-  container.style.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.1) !important";
+  // Thêm thẻ <style> vào <head>
+  if (!document.getElementById("nvc_styles")) {
+    const style = document.createElement("style");
+    style.id = "nvc_styles";
+    style.innerHTML = `
+      #nvc_video-speed-control {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 9000;
+        padding: 10px;
+        background-color: #fff;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      #nvc_video-speed-control input {
+        margin-right: 10px;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        width: 50px;
+      }
+      #nvc_video-speed-control button {
+        padding: 5px 10px;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      #nvc_video-speed-control button:first-child {
+        background-color: #007BFF;
+        color: #fff;
+      }
+      #nvc_video-speed-control button:last-child {
+        background-color: #FF0000;
+        color: #fff;
+        margin-left: 10px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 
-  var input = document.createElement("input");
+  // Tạo container
+  const container = document.createElement("div");
+  container.id = "nvc_video-speed-control";
+
+  // Tạo input
+  const input = document.createElement("input");
   input.type = "number";
-  input.value = 1;
+  input.value = 1; // Giá trị mặc định
   input.placeholder = "Enter speed";
-  input.style.marginRight = "10px !important";
-  input.style.padding = "5px !important";
-  input.style.border = "1px solid #ccc !important";
-  input.style.borderRadius = "3px !important";
-  input.style.width = "50px !important !important";
-  input.step = "0.2 !important";
+  input.step = "0.2";
 
-  var button = document.createElement("button");
+  // Tạo nút "Set"
+  const button = document.createElement("button");
   button.innerHTML = "Set";
-  button.style.padding = "5px 10px !important";
-  button.style.backgroundColor = "#007BFF !important";
-  button.style.color = "#fff !important";
-  button.style.border = "none !important";
-  button.style.borderRadius = "3px !important";
-  button.style.cursor = "pointer !important";
 
-  var removeButton = document.createElement("button");
+  // Tạo nút "Remove"
+  const removeButton = document.createElement("button");
   removeButton.innerHTML = "X";
-  removeButton.style.padding = "5px 10px !important";
-  removeButton.style.backgroundColor = "#FF0000 !important";
-  removeButton.style.color = "#fff !important";
-  removeButton.style.border = "none !important";
-  removeButton.style.borderRadius = "3px !important";
-  removeButton.style.cursor = "pointer !important";
-  removeButton.style.marginLeft = "10px !important";
 
+  // Gắn sự kiện
   button.addEventListener("click", function () {
-    var speed = parseFloat(input.value);
+    const speed = parseFloat(input.value);
     if (isNaN(speed) || speed <= 0) {
       alert("Please enter a valid speed.");
     } else {
-      var video = document.querySelectorAll("video");
-      for (var v of video) {
-        v.playbackRate = speed;
+      const videos = document.querySelectorAll("video");
+      if (videos.length === 0) {
+        alert("No video elements found on the page.");
+        return;
+      }
+      for (const video of videos) {
+        video.playbackRate = speed;
       }
       chrome.storage.sync.set({ videoSpeed: speed });
     }
@@ -65,13 +89,16 @@ function createSpeedControlBox() {
     container.remove();
   });
 
+  // Thêm các phần tử vào container
   container.appendChild(input);
   container.appendChild(button);
   container.appendChild(removeButton);
 
+  // Thêm container vào body
   document.body.appendChild(container);
 
+  // Lấy giá trị từ storage
   chrome.storage.sync.get(["videoSpeed"], function (result) {
-    input.value = result.videoSpeed;
+    input.value = result.videoSpeed !== undefined ? result.videoSpeed : 1;
   });
 }
