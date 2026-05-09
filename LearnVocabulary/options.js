@@ -4,11 +4,8 @@ async function getVocab() {
   return Array.isArray(data.vocab) ? data.vocab : [];
 }
 async function setVocab(vocab) {
+  // Open content scripts react via chrome.storage.onChanged — no broadcast needed.
   await chrome.storage.local.set({ vocab });
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "VOCAB_UPDATED", payload: { vocab } });
-  } catch {}
 }
 
 const area = document.getElementById("jsonArea");

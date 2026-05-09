@@ -521,7 +521,12 @@
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === "TOGGLE_NOTE_REQUEST") toggleNote();
-    else if (msg?.type === "VOCAB_UPDATED") render();
+  });
+
+  // Sync state across tabs / from background context-menu add / options page.
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local") return;
+    if (changes.vocab || changes.currentIndex) render();
   });
 
   ensureDefaults().then(() => {

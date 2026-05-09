@@ -6,10 +6,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting",
     "contextMenus",
-    "tabs",
-    "downloads"
+    "tabs"
   ],
   "host_permissions": [
     "<all_urls>"
