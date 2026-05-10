@@ -1,0 +1,13 @@
+# Build artifacts / packaged extensions
+*.zip
+*.crx
+*.pem
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
