@@ -5,6 +5,8 @@ chrome.action.onClicked.addListener((tab) => {
   });
 });
 
+var intervalNum;
+
 function createSpeedControlBox() {
   var container = document.createElement("div");
   container.id = "video-speed-control";
@@ -46,10 +48,25 @@ function createSpeedControlBox() {
         }
       });
     }
-    setInterval(skipVideo, 1000);
+    var adCloseButton = document.querySelector(
+      'div[aria-label="Đóng quảng cáo"]'
+    );
+    if (adCloseButton) {
+      adCloseButton.click();
+    }
+
+    var imageIcon = document.querySelector(
+      'i.img[data-visualcompletion="css-img"]'
+    );
+    if (imageIcon) {
+      imageIcon.click();
+    }
+
+    intervalNum = setInterval(skipVideo, 1000);
   });
 
   removeButton.addEventListener("click", function () {
+    clearInterval(intervalNum);
     container.remove();
   });
 
