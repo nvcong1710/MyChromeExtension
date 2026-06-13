@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bilingual Translate — Settings</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body { width: auto; }
+      .wrap { max-width: 560px; margin: 0 auto; }
+      .opt-body { padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+      .opt-card {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 14px; padding: 18px 20px;
+      }
+      .opt-card h2 { margin: 0 0 4px; font-size: 15px; }
+      .opt-card p.desc { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); }
+      .sites { list-style: none; margin: 0; padding: 0; }
+      .sites li {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px;
+      }
+      .sites li:first-child { border-top: none; }
+      .site-remove {
+        border: none; background: none; color: #d93025; cursor: pointer;
+        font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+      }
+      .site-remove:hover { background: rgba(217, 48, 37, 0.1); }
+      .empty { font-size: 13px; color: var(--muted); padding: 6px 0; }
+      #status { color: var(--brand); font-size: 13px; min-height: 18px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="bt-header">
+        <img src="icon48.png" alt="" class="bt-logo" />
+        <div>
+          <div class="bt-title">Bilingual Translate</div>
+          <div class="bt-subtitle">Settings</div>
+        </div>
+      </header>
+
+      <div class="opt-body">
+        <section class="opt-card">
+          <h2>Default languages</h2>
+          <p class="desc">Applied to every page. You can switch quickly from the popup.</p>
+          <div class="bt-lang-row">
+            <div class="bt-lang">
+              <span class="bt-lang-cap">From</span>
+              <select id="src"></select>
+            </div>
+            <button id="swap" class="bt-swap" title="Swap" aria-label="Swap">⇄</button>
+            <div class="bt-lang">
+              <span class="bt-lang-cap">To</span>
+              <select id="tgt"></select>
+            </div>
+          </div>
+          <div id="status"></div>
+        </section>
+
+        <section class="opt-card">
+          <h2>Sites with auto-translate on</h2>
+          <p class="desc">These sites translate again automatically whenever you return. Click “Remove” to turn off.</p>
+          <ul class="sites" id="sites"></ul>
+        </section>
+
+        <p class="bt-note">
+          All translation runs on your device using Chrome's built-in
+          Translator — page content is never sent to any server.
+        </p>
+      </div>
+    </div>
+
+    <script src="options.js"></script>
+  </body>
+</html>

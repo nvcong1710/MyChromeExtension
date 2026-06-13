@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="bt-header">
+      <img src="icon48.png" alt="" class="bt-logo" />
+      <div>
+        <div class="bt-title">Bilingual Translate</div>
+        <div class="bt-subtitle">Inline bilingual translation</div>
+      </div>
+    </header>
+
+    <main class="bt-body">
+      <!-- Master on/off for the current site -->
+      <section class="bt-card bt-toggle-row">
+        <div class="bt-toggle-text">
+          <div class="bt-label">Translate this page</div>
+          <div class="bt-host" id="host">—</div>
+        </div>
+        <label class="bt-switch">
+          <input type="checkbox" id="power" />
+          <span class="bt-slider"></span>
+        </label>
+      </section>
+
+      <!-- Language pair -->
+      <section class="bt-card bt-lang-row">
+        <div class="bt-lang">
+          <span class="bt-lang-cap">From</span>
+          <select id="src"></select>
+        </div>
+        <button id="swap" class="bt-swap" title="Swap languages" aria-label="Swap languages">⇄</button>
+        <div class="bt-lang">
+          <span class="bt-lang-cap">To</span>
+          <select id="tgt"></select>
+        </div>
+      </section>
+
+      <p class="bt-note" id="note">
+        Runs entirely on your device — page content is never sent anywhere.
+      </p>
+    </main>
+
+    <footer class="bt-footer">
+      <span class="bt-kbd">Alt</span> + <span class="bt-kbd">T</span>
+      <span class="bt-foot-hint">to toggle quickly</span>
+      <button id="opts" class="bt-link">Settings</button>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

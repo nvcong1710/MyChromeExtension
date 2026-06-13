@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "To-Do with Always on Top",
+  "version": "1.0",
+  "description": "To-Do App with Always on Top functionality.",
+  "permissions": ["tabs", "windows"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

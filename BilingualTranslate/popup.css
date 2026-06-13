@@ -1,0 +1,123 @@
+:root {
+  --brand: #1a73e8;
+  --brand-d: #1557d6;
+  --ink: #202124;
+  --muted: #5f6368;
+  --line: #e6e8eb;
+  --bg: #ffffff;
+  --card: #f6f8fc;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 320px;
+  margin: 0;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* Header --------------------------------------------------------------- */
+.bt-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, #2b7cff 0%, var(--brand-d) 100%);
+  color: #fff;
+}
+.bt-logo { width: 34px; height: 34px; border-radius: 8px; }
+.bt-title { font-size: 15px; font-weight: 700; }
+.bt-subtitle { font-size: 11.5px; opacity: 0.85; margin-top: 1px; }
+
+/* Body ----------------------------------------------------------------- */
+.bt-body { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+.bt-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.bt-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.bt-label { font-weight: 600; font-size: 14px; }
+.bt-host {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Toggle switch -------------------------------------------------------- */
+.bt-switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
+.bt-switch input { opacity: 0; width: 0; height: 0; }
+.bt-slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: #c9ced6; border-radius: 26px; transition: background 0.2s;
+}
+.bt-slider::before {
+  content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.bt-switch input:checked + .bt-slider { background: var(--brand); }
+.bt-switch input:checked + .bt-slider::before { transform: translateX(20px); }
+.bt-switch input:focus-visible + .bt-slider { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* Language row --------------------------------------------------------- */
+.bt-lang-row { display: flex; align-items: flex-end; gap: 8px; }
+.bt-lang { flex: 1; min-width: 0; }
+.bt-lang-cap { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.bt-lang select {
+  width: 100%; padding: 7px 8px; font-size: 13px;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+}
+.bt-swap {
+  flex: none; width: 34px; height: 34px; margin-bottom: 1px;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  color: var(--brand); font-size: 16px; cursor: pointer; transition: background 0.15s;
+}
+.bt-swap:hover { background: #eef3fe; }
+
+.bt-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+/* Footer --------------------------------------------------------------- */
+.bt-footer {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px; border-top: 1px solid var(--line);
+  font-size: 12px; color: var(--muted);
+}
+.bt-kbd {
+  display: inline-block; padding: 1px 6px; font-size: 11px;
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+  background: #fafafa; color: var(--ink);
+}
+.bt-foot-hint { flex: 1; }
+.bt-link {
+  border: none; background: none; color: var(--brand);
+  font-size: 12px; font-weight: 600; cursor: pointer; padding: 4px;
+}
+.bt-link:hover { text-decoration: underline; }
+
+/* Disabled state (restricted pages) ------------------------------------ */
+body.bt-disabled .bt-card,
+body.bt-disabled .bt-swap { opacity: 0.5; pointer-events: none; }
+
+/* Dark mode ------------------------------------------------------------ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e8eaed; --muted: #9aa0a6; --line: #3c4043;
+    --bg: #202124; --card: #2a2b2e;
+  }
+  .bt-lang select, .bt-swap { background: #303134; }
+  .bt-kbd { background: #303134; }
+}
