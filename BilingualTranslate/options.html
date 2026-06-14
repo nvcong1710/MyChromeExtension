@@ -2,74 +2,225 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Bilingual Translate — Settings</title>
+    <title>Vimi Bilingual — Settings</title>
     <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="pages.css" />
     <style>
-      body { width: auto; }
-      .wrap { max-width: 560px; margin: 0 auto; }
-      .opt-body { padding: 22px; display: flex; flex-direction: column; gap: 18px; }
-      .opt-card {
-        background: var(--card); border: 1px solid var(--line);
-        border-radius: 14px; padding: 18px 20px;
+      /* Full-width settings layout (overrides pages.css .page max-width). */
+      .page.settings { max-width: none; margin: 0; }
+      .settings-layout { display: flex; align-items: stretch; min-height: calc(100vh - 70px); }
+
+      /* Left nav */
+      .settings-nav {
+        flex: none; width: 232px; padding: 20px 12px;
+        border-right: 1px solid var(--line); background: var(--card);
       }
-      .opt-card h2 { margin: 0 0 4px; font-size: 15px; }
-      .opt-card p.desc { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); }
-      .sites { list-style: none; margin: 0; padding: 0; }
-      .sites li {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 9px 0; border-top: 1px solid var(--line); font-size: 13.5px;
+      .settings-nav button {
+        display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+        padding: 10px 12px; margin-bottom: 4px; border: none; background: none;
+        border-radius: 10px; cursor: pointer; color: var(--ink);
+        font: 600 13.5px system-ui, -apple-system, sans-serif;
       }
-      .sites li:first-child { border-top: none; }
-      .site-remove {
-        border: none; background: none; color: #d93025; cursor: pointer;
-        font-size: 13px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+      .settings-nav button:hover { background: rgba(26, 115, 232, 0.08); }
+      .settings-nav button.active { background: var(--brand); color: #fff; }
+      .settings-nav .nav-ico { font-size: 16px; line-height: 1; }
+
+      /* Right content */
+      .settings-content { flex: 1; min-width: 0; padding: 26px 32px; }
+      .tab-panel { display: flex; flex-direction: column; gap: 18px; }
+      .tab-panel[hidden] { display: none; }
+      .panel-title { font-size: 18px; font-weight: 700; margin: 0 0 2px; }
+
+      /* Keep form controls tidy on wide screens; cards stay full width */
+      .settings-content .field { max-width: 340px; }
+      .settings-content .inline-fields {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 320px));
+        gap: 16px; max-width: 720px;
       }
-      .site-remove:hover { background: rgba(217, 48, 37, 0.1); }
-      .empty { font-size: 13px; color: var(--muted); padding: 6px 0; }
-      #status { color: var(--brand); font-size: 13px; min-height: 18px; }
+      .settings-content .inline-fields .field { max-width: none; }
+
+      /* Vocabulary */
+      .vocab-list { list-style: none; margin: 0; padding: 0; }
+      .vocab-list li {
+        display: flex; align-items: center; gap: 12px;
+        padding: 11px 0; border-top: 1px solid var(--line);
+      }
+      .vocab-list li:first-child { border-top: none; }
+      .v-term { font-weight: 600; min-width: 140px; }
+      .v-trans { flex: 1; color: var(--muted); font-size: 13px; }
+      .v-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--line); }
+      .v-status.new { background: #e8f0fe; color: #1a73e8; }
+      .v-status.learning { background: #fef0e0; color: #e8710a; }
+      .v-status.mastered { background: #e6f4ea; color: #1e8e3e; }
+      .v-del { border: none; background: none; color: #d93025; cursor: pointer; font-weight: 600; }
+      .toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+      .toolbar input[type="text"] { flex: 1; min-width: 200px; }
+      .toolbar select { width: auto; }
+
+      #saveStatus { color: var(--brand); font-size: 13px; min-height: 18px; }
+      .mascot-preview { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
+      .mascot-preview figure { margin: 0; text-align: center; width: 88px; }
+      .mascot-preview img { height: 88px; width: auto; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.2)); }
+      .mascot-preview figcaption { font-size: 11.5px; font-weight: 600; margin-top: 6px; }
+      .mascot-preview figcaption small { display: block; font-weight: 400; color: var(--muted); font-size: 10.5px; }
     </style>
   </head>
   <body>
-    <div class="wrap">
-      <header class="bt-header">
-        <img src="icon48.png" alt="" class="bt-logo" />
+    <div class="page settings">
+      <header class="page-head">
+        <img src="icon48.png" alt="" />
         <div>
-          <div class="bt-title">Bilingual Translate</div>
-          <div class="bt-subtitle">Settings</div>
+          <div class="h-title">Vimi Bilingual</div>
+          <div class="h-sub">Settings &amp; vocabulary</div>
         </div>
       </header>
 
-      <div class="opt-body">
-        <section class="opt-card">
-          <h2>Default languages</h2>
-          <p class="desc">Applied to every page. You can switch quickly from the popup.</p>
-          <div class="bt-lang-row">
-            <div class="bt-lang">
-              <span class="bt-lang-cap">From</span>
-              <select id="src"></select>
-            </div>
-            <button id="swap" class="bt-swap" title="Swap" aria-label="Swap">⇄</button>
-            <div class="bt-lang">
-              <span class="bt-lang-cap">To</span>
-              <select id="tgt"></select>
-            </div>
-          </div>
-          <div id="status"></div>
-        </section>
+      <div class="settings-layout">
+        <!-- Left navigation -->
+        <nav class="settings-nav" id="nav">
+          <button data-tab="general" class="active"><span class="nav-ico">⚙️</span> General</button>
+          <button data-tab="mascot"><span class="nav-ico">🐣</span> Mascot</button>
+          <button data-tab="learning"><span class="nav-ico">🔔</span> Reminders &amp; Tests</button>
+          <button data-tab="vocab"><span class="nav-ico">📚</span> Vocabulary</button>
+        </nav>
 
-        <section class="opt-card">
-          <h2>Sites with auto-translate on</h2>
-          <p class="desc">These sites translate again automatically whenever you return. Click “Remove” to turn off.</p>
-          <ul class="sites" id="sites"></ul>
-        </section>
+        <!-- Content -->
+        <div class="settings-content">
+          <!-- General -->
+          <section class="tab-panel" data-panel="general">
+            <h1 class="panel-title">General</h1>
+            <section class="card">
+              <h2>Languages &amp; goal</h2>
+              <p class="desc">Used for translation and saved vocabulary.</p>
+              <div class="inline-fields">
+                <label class="field"><span>From</span><select id="src"></select></label>
+                <label class="field"><span>To</span><select id="tgt"></select></label>
+              </div>
+              <label class="field">
+                <span>Daily goal (words to learn per day)</span>
+                <input type="number" id="dailyGoal" min="1" max="200" />
+              </label>
+              <div id="saveStatus"></div>
+            </section>
+            <p class="bt-note">
+              All translation and review runs on your device — nothing is sent to any server.
+            </p>
+          </section>
 
-        <p class="bt-note">
-          All translation runs on your device using Chrome's built-in
-          Translator — page content is never sent to any server.
-        </p>
+          <!-- Mascot -->
+          <section class="tab-panel" data-panel="mascot" hidden>
+            <h1 class="panel-title">Mascot</h1>
+            <section class="card">
+              <div class="switch-row">
+                <span>Show Vimi on pages</span>
+                <label class="bt-switch"><input type="checkbox" id="mascotEnabled" /><span class="bt-slider"></span></label>
+              </div>
+              <p class="desc">Drag her anywhere; click her for quick actions. Turn off to hide everywhere.</p>
+              <div class="mascot-preview">
+                <figure><img src="mascot/vimi-idle.png" alt="" /><figcaption>Idle<small>default</small></figcaption></figure>
+                <figure><img src="mascot/vimi-walk.png" alt="" /><figcaption>Walk<small>wandering</small></figcaption></figure>
+                <figure><img src="mascot/vimi-talk.png" alt="" /><figcaption>Talk<small>chatting</small></figcaption></figure>
+                <figure><img src="mascot/vimi-read.png" alt="" /><figcaption>Read<small>vocab reminder</small></figcaption></figure>
+                <figure><img src="mascot/vimi-think.png" alt="" /><figcaption>Think<small>translating</small></figcaption></figure>
+                <figure><img src="mascot/vimi-happy.png" alt="" /><figcaption>Happy<small>saved word</small></figcaption></figure>
+                <figure><img src="mascot/vimi-celebrate.png" alt="" /><figcaption>Celebrate<small>finished review/test</small></figcaption></figure>
+                <figure><img src="mascot/vimi-point.png" alt="" /><figcaption>Point<small>chatting</small></figcaption></figure>
+                <figure><img src="mascot/vimi-love.png" alt="" /><figcaption>Love<small>chatting</small></figcaption></figure>
+                <figure><img src="mascot/vimi-shy.png" alt="" /><figcaption>Shy<small>chatting</small></figcaption></figure>
+                <figure><img src="mascot/vimi-wave.png" alt="" /><figcaption>Wave<small>greeting</small></figcaption></figure>
+                <figure><img src="mascot/vimi-sleep.png" alt="" /><figcaption>Sleep<small>idle ~90s</small></figcaption></figure>
+              </div>
+            </section>
+          </section>
+
+          <!-- Reminders & Tests -->
+          <section class="tab-panel" data-panel="learning" hidden>
+            <h1 class="panel-title">Reminders &amp; Tests</h1>
+            <section class="card">
+              <h2>Reminders</h2>
+              <div class="switch-row">
+                <span>Daily review reminder</span>
+                <label class="bt-switch"><input type="checkbox" id="reminderEnabled" /><span class="bt-slider"></span></label>
+              </div>
+              <label class="field">
+                <span>Reminder time</span>
+                <select id="reminderHour"></select>
+              </label>
+              <div class="row">
+                <button class="btn" id="testNotifyBtn">Send a test reminder</button>
+                <span class="muted" id="notifyInfo" style="align-self:center;"></span>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2>Scheduled test</h2>
+              <p class="desc">A test is generated on schedule from words you learned, and waits until you take it.</p>
+              <div class="switch-row">
+                <span>Enable scheduled tests</span>
+                <label class="bt-switch"><input type="checkbox" id="testEnabled" /><span class="bt-slider"></span></label>
+              </div>
+              <div class="inline-fields">
+                <label class="field">
+                  <span>Frequency</span>
+                  <select id="testFreq">
+                    <option value="daily">Every day</option>
+                    <option value="every3">Every 3 days</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every 2 weeks</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Day (for weekly)</span>
+                  <select id="testWeekday"></select>
+                </label>
+                <label class="field">
+                  <span>Questions per test</span>
+                  <select id="testQuestionCount">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="30">30</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Question type</span>
+                  <select id="testType">
+                    <option value="mcq">Multiple choice</option>
+                    <option value="typing">Type the answer</option>
+                    <option value="mixed">Mixed</option>
+                  </select>
+                </label>
+              </div>
+              <div class="row">
+                <button class="btn" id="rescheduleBtn">Recompute next test date</button>
+                <span class="muted" id="nextTestInfo" style="align-self:center;"></span>
+              </div>
+            </section>
+          </section>
+
+          <!-- Vocabulary -->
+          <section class="tab-panel" data-panel="vocab" hidden>
+            <h1 class="panel-title">Vocabulary <span class="muted" id="vocabCount"></span></h1>
+            <section class="card">
+              <div class="toolbar">
+                <input type="text" id="search" placeholder="Search…" />
+                <select id="filter">
+                  <option value="all">All</option>
+                  <option value="new">New</option>
+                  <option value="learning">Learning</option>
+                  <option value="mastered">Mastered</option>
+                </select>
+                <button class="btn" id="exportBtn">Export JSON</button>
+                <button class="btn" id="importBtn">Import JSON</button>
+                <input type="file" id="importFile" accept="application/json" hidden />
+              </div>
+              <ul class="vocab-list" id="vocab"></ul>
+            </section>
+          </section>
+        </div>
       </div>
     </div>
 
+    <script src="store.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

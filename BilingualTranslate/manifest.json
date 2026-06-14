@@ -1,11 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Bilingual Translate (EN↔VI)",
-  "version": "1.0.0",
-  "description": "Translate any page in place and show the translation right below the original (bilingual view). Uses Chrome's built-in on-device Translator — free, private, no API key.",
+  "name": "Vimi Bilingual",
+  "version": "2.0.1",
+  "description": "Read webpages bilingually and build vocabulary: save words, review with spaced repetition, take tests. Free, private, on-device.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "contextMenus",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -20,7 +23,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Bilingual Translate",
+    "default_title": "Vimi Bilingual",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icon16.png",
@@ -35,12 +38,24 @@
         "<all_urls>"
       ],
       "js": [
-        "content.js"
+        "store.js",
+        "content.js",
+        "mascot.js"
       ],
       "css": [
         "content.css"
       ],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "mascot/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "commands": {

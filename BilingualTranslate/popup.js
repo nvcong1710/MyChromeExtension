@@ -1,7 +1,6 @@
-// Popup control panel. Reflects and controls the current tab's translation
-// state. Source of truth lives in chrome.storage.local (btHosts / btSrc /
-// btTgt); the content script reads the same keys, so popup and page stay in
-// sync. Actions are pushed to the page via messages (BT_TOGGLE / BT_RELOAD).
+// Popup control panel. Translation toggle + language pair (shared with content
+// via fufuConfig / fufuHosts), plus learning stats and entry points to the
+// Review and Test pages. store.js (self.FuFu) is loaded first.
 
 const LANGS = [
   ["en", "English"],
@@ -15,6 +14,7 @@ const LANGS = [
   ["ru", "Russian"],
 ];
 
+const F = self.FuFu;
 const $ = (id) => document.getElementById(id);
 const power = $("power");
 const srcSel = $("src");
@@ -35,19 +35,56 @@ fill(srcSel);
 fill(tgtSel);
 
 function hostOf(url) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
+  try { return new URL(url).hostname; } catch { return ""; }
 }
 
 async function send(type) {
   if (!tab?.id) return;
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type });
-  } catch {
-    // content script absent — ignore
+  try { await chrome.tabs.sendMessage(tab.id, { type }); } catch {}
+}
+
+function startOfDay() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+async function refreshStats() {
+  const cfg = await F.getConfig();
+  const vocab = await F.getVocab();
+  const due = await F.dueCount();
+  const today = startOfDay();
+  const learnedToday = vocab.filter((w) => (w.createdAt || 0) >= today).length;
+
+  $("dueNum").textContent = String(due);
+  $("goalNum").textContent = `${learnedToday}/${cfg.dailyGoal}`;
+  $("totalNum").textContent = String(vocab.length);
+
+  // Review button: badge with due count
+  const reviewBtn = $("review");
+  reviewBtn.querySelector(".bt-dot")?.remove();
+  if (due > 0) {
+    const dot = document.createElement("span");
+    dot.className = "bt-dot";
+    dot.textContent = String(Math.min(due, 99));
+    reviewBtn.appendChild(dot);
+  }
+
+  // Test button + note
+  const pending = await F.getPendingTest();
+  const testBtn = $("test");
+  testBtn.querySelector(".bt-dot")?.remove();
+  if (pending) {
+    const dot = document.createElement("span");
+    dot.className = "bt-dot";
+    dot.textContent = "!";
+    testBtn.appendChild(dot);
+    $("testNote").textContent = `Test ready: ${pending.count} questions waiting`;
+  } else if (cfg.nextTestAt) {
+    const d = new Date(cfg.nextTestAt);
+    $("testNote").textContent = `Next test: ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  } else {
+    $("testNote").textContent = "";
   }
 }
 
@@ -56,42 +93,46 @@ async function init() {
   const usable = tab && /^https?:/.test(tab.url || "");
   host = usable ? hostOf(tab.url) : "";
 
-  const cfg = await chrome.storage.local.get(["btHosts", "btSrc", "btTgt"]);
-  srcSel.value = cfg.btSrc || "en";
-  tgtSel.value = cfg.btTgt || "vi";
+  const cfg = await F.getConfig();
+  srcSel.value = cfg.src || "en";
+  tgtSel.value = cfg.tgt || "vi";
 
-  if (!usable) {
+  if (usable) {
+    $("host").textContent = host;
+    const hosts = await F.getHosts();
+    power.checked = !!hosts[host];
+  } else {
     document.body.classList.add("bt-disabled");
     $("host").textContent = "Not available on this page";
-    return;
+    power.disabled = true;
   }
 
-  $("host").textContent = host;
-  const hosts = cfg.btHosts || {};
-  power.checked = !!hosts[host];
+  await refreshStats();
 }
 
-// Master toggle for the current site.
-power.addEventListener("change", () => {
-  send("BT_TOGGLE"); // content script flips state + updates btHosts
-});
+power.addEventListener("change", () => send("BT_TOGGLE"));
 
-// Language changes: persist, then re-translate live if currently on.
-function saveLangsAndMaybeReload() {
-  chrome.storage.local.set({ btSrc: srcSel.value, btTgt: tgtSel.value }, () => {
-    if (power.checked) send("BT_RELOAD");
-  });
+async function saveLangs() {
+  await F.setConfig({ src: srcSel.value, tgt: tgtSel.value });
+  if (power.checked) send("BT_RELOAD");
 }
-srcSel.addEventListener("change", saveLangsAndMaybeReload);
-tgtSel.addEventListener("change", saveLangsAndMaybeReload);
-
+srcSel.addEventListener("change", saveLangs);
+tgtSel.addEventListener("change", saveLangs);
 $("swap").addEventListener("click", () => {
   const a = srcSel.value;
   srcSel.value = tgtSel.value;
   tgtSel.value = a;
-  saveLangsAndMaybeReload();
+  saveLangs();
 });
 
+$("review").addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("review.html") });
+  window.close();
+});
+$("test").addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("test.html") });
+  window.close();
+});
 $("opts").addEventListener("click", () => chrome.runtime.openOptionsPage());
 
 init();

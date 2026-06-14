@@ -90,6 +90,31 @@ body {
 
 .bt-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
 
+/* Learning card -------------------------------------------------------- */
+.bt-learn { display: flex; flex-direction: column; gap: 12px; }
+.bt-stats { display: flex; gap: 8px; }
+.bt-stat {
+  flex: 1; text-align: center; padding: 8px 4px;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+}
+.bt-stat-num { font-size: 18px; font-weight: 700; color: var(--brand); line-height: 1.1; }
+.bt-stat-cap { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+.bt-actions { display: flex; gap: 8px; }
+.bt-btn {
+  flex: 1; padding: 9px 0; border-radius: 9px; border: 1px solid var(--line);
+  background: #fff; color: var(--ink); font: 600 13px system-ui, sans-serif;
+  cursor: pointer; position: relative; transition: background 0.15s;
+}
+.bt-btn:hover { background: #f0f3f8; }
+.bt-btn-primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+.bt-btn-primary:hover { background: var(--brand-d); }
+.bt-btn .bt-dot {
+  position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px;
+  padding: 0 4px; border-radius: 8px; background: #e8710a; color: #fff;
+  font-size: 10px; line-height: 16px; font-weight: 700;
+}
+.bt-test-note { font-size: 11.5px; color: var(--muted); text-align: center; min-height: 14px; }
+
 /* Footer --------------------------------------------------------------- */
 .bt-footer {
   display: flex; align-items: center; gap: 6px;

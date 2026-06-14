@@ -8,13 +8,13 @@
     <header class="bt-header">
       <img src="icon48.png" alt="" class="bt-logo" />
       <div>
-        <div class="bt-title">Bilingual Translate</div>
-        <div class="bt-subtitle">Inline bilingual translation</div>
+        <div class="bt-title">Vimi Bilingual</div>
+        <div class="bt-subtitle">Read bilingual · learn vocabulary</div>
       </div>
     </header>
 
     <main class="bt-body">
-      <!-- Master on/off for the current site -->
+      <!-- Translation -->
       <section class="bt-card bt-toggle-row">
         <div class="bt-toggle-text">
           <div class="bt-label">Translate this page</div>
@@ -26,7 +26,6 @@
         </label>
       </section>
 
-      <!-- Language pair -->
       <section class="bt-card bt-lang-row">
         <div class="bt-lang">
           <span class="bt-lang-cap">From</span>
@@ -39,17 +38,41 @@
         </div>
       </section>
 
-      <p class="bt-note" id="note">
-        Runs entirely on your device — page content is never sent anywhere.
+      <!-- Learning -->
+      <section class="bt-card bt-learn">
+        <div class="bt-stats">
+          <div class="bt-stat">
+            <div class="bt-stat-num" id="dueNum">0</div>
+            <div class="bt-stat-cap">Due now</div>
+          </div>
+          <div class="bt-stat">
+            <div class="bt-stat-num" id="goalNum">0/0</div>
+            <div class="bt-stat-cap">Today's goal</div>
+          </div>
+          <div class="bt-stat">
+            <div class="bt-stat-num" id="totalNum">0</div>
+            <div class="bt-stat-cap">Total words</div>
+          </div>
+        </div>
+        <div class="bt-actions">
+          <button id="review" class="bt-btn bt-btn-primary">Review</button>
+          <button id="test" class="bt-btn">Test</button>
+        </div>
+        <div class="bt-test-note" id="testNote"></div>
+      </section>
+
+      <p class="bt-note">
+        Tip: highlight any word on a page to save it to your vocabulary.
       </p>
     </main>
 
     <footer class="bt-footer">
       <span class="bt-kbd">Alt</span> + <span class="bt-kbd">T</span>
-      <span class="bt-foot-hint">to toggle quickly</span>
+      <span class="bt-foot-hint">to toggle translation</span>
       <button id="opts" class="bt-link">Settings</button>
     </footer>
 
+    <script src="store.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>
