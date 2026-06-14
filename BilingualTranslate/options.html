@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vimi Bilingual — Settings</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="tailwind.css" />
+  </head>
+  <body class="min-h-screen bg-slate-50 font-sans text-slate-800 dark:bg-slate-900 dark:text-slate-100">
+    <!-- Header -->
+    <header class="flex items-center gap-3 bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-4 text-white">
+      <img src="icon48.png" alt="" class="h-9 w-9 rounded-lg" />
+      <div>
+        <div class="text-base font-bold leading-tight">Vimi Bilingual</div>
+        <div class="text-xs text-white/80">Settings &amp; vocabulary</div>
+      </div>
+    </header>
+
+    <div class="flex items-stretch" style="min-height: calc(100vh - 72px)">
+      <!-- Left nav -->
+      <nav id="nav" class="w-56 shrink-0 border-r border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
+        <button data-tab="dashboard" class="nav-btn">📊 Dashboard</button>
+        <button data-tab="general" class="nav-btn">⚙️ General</button>
+        <button data-tab="mascot" class="nav-btn">🐣 Mascot</button>
+        <button data-tab="learning" class="nav-btn">🔔 Reminders &amp; Tests</button>
+        <button data-tab="vocab" class="nav-btn">📚 Vocabulary</button>
+        <button data-tab="decks" class="nav-btn">🗂️ Flashcards</button>
+      </nav>
+
+      <!-- Content -->
+      <div class="min-w-0 flex-1 px-6 py-5">
+        <!-- Dashboard -->
+        <section class="tab-panel hidden flex flex-col gap-6" data-panel="dashboard">
+          <h1 class="text-xl font-bold">Dashboard</h1>
+          <div id="dashboard" class="flex flex-col gap-6"></div>
+        </section>
+
+        <!-- General -->
+        <section class="tab-panel flex flex-col gap-6" data-panel="general">
+          <h1 class="text-xl font-bold">General</h1>
+
+          <section class="card max-w-2xl">
+            <h2 class="mb-1 text-[15px] font-bold">Languages &amp; goal</h2>
+            <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">Used for translation and saved vocabulary.</p>
+            <div class="flex max-w-md flex-wrap gap-4">
+              <label class="min-w-[160px] flex-1"><span class="label">From</span><select id="src" class="input"></select></label>
+              <label class="min-w-[160px] flex-1"><span class="label">To</span><select id="tgt" class="input"></select></label>
+            </div>
+            <label class="mt-4 block max-w-[220px]">
+              <span class="label">Daily goal (words/day)</span>
+              <input type="number" id="dailyGoal" min="1" max="200" class="input" />
+            </label>
+            <div id="saveStatus" class="mt-2 min-h-[18px] text-xs text-brand-600"></div>
+          </section>
+
+          <section class="card max-w-2xl">
+            <h2 class="mb-1 text-[15px] font-bold">Appearance</h2>
+            <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">Choose how Vimi looks.</p>
+            <div class="flex flex-wrap gap-6">
+              <div>
+                <span class="label">Theme</span>
+                <div id="themeSeg" class="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-600">
+                  <button data-theme="light" class="theme-opt">☀️ Light</button>
+                  <button data-theme="dark" class="theme-opt">🌙 Dark</button>
+                  <button data-theme="system" class="theme-opt">🖥️ System</button>
+                </div>
+              </div>
+              <div>
+                <span class="label">Text size</span>
+                <div id="sizeSeg" class="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-600">
+                  <button data-size="0.95" class="theme-opt">Small</button>
+                  <button data-size="1" class="theme-opt">Medium</button>
+                  <button data-size="1.1" class="theme-opt">Large</button>
+                  <button data-size="1.2" class="theme-opt">X-Large</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <p class="text-[11.5px] text-slate-500 dark:text-slate-400">
+            All translation and review runs on your device — nothing is sent to any server.
+          </p>
+        </section>
+
+        <!-- Mascot -->
+        <section class="tab-panel hidden flex flex-col gap-6" data-panel="mascot">
+          <h1 class="text-xl font-bold">Mascot</h1>
+          <section class="card max-w-3xl">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold">Show Vimi on pages</span>
+              <label class="relative inline-flex cursor-pointer items-center">
+                <input type="checkbox" id="mascotEnabled" class="peer sr-only" />
+                <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 dark:bg-slate-600"></div>
+                <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
+              </label>
+            </div>
+            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Drag her anywhere; click her for quick actions. Turn off to hide everywhere.</p>
+            <div id="mascotPreview" class="mt-4 flex flex-wrap gap-4"></div>
+          </section>
+        </section>
+
+        <!-- Reminders & Tests -->
+        <section class="tab-panel hidden flex flex-col gap-6" data-panel="learning">
+          <h1 class="text-xl font-bold">Reminders &amp; Tests</h1>
+
+          <section class="card max-w-2xl">
+            <h2 class="mb-3 text-[15px] font-bold">Reminders</h2>
+            <div class="flex items-center justify-between py-1">
+              <span>Daily review reminder</span>
+              <label class="relative inline-flex cursor-pointer items-center">
+                <input type="checkbox" id="reminderEnabled" class="peer sr-only" />
+                <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 dark:bg-slate-600"></div>
+                <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
+              </label>
+            </div>
+            <label class="mt-3 block max-w-[200px]"><span class="label">Reminder time</span><select id="reminderHour" class="input"></select></label>
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+              <button class="btn" id="testNotifyBtn">Send a test reminder</button>
+              <span class="text-xs text-slate-500 dark:text-slate-400" id="notifyInfo"></span>
+            </div>
+          </section>
+
+          <section class="card max-w-2xl">
+            <h2 class="mb-1 text-[15px] font-bold">Scheduled test</h2>
+            <p class="mb-3 text-xs text-slate-500 dark:text-slate-400">A test is generated on schedule from words you learned, and waits until you take it.</p>
+            <div class="flex items-center justify-between py-1">
+              <span>Enable scheduled tests</span>
+              <label class="relative inline-flex cursor-pointer items-center">
+                <input type="checkbox" id="testEnabled" class="peer sr-only" />
+                <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 dark:bg-slate-600"></div>
+                <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
+              </label>
+            </div>
+            <div class="mt-3 grid grid-cols-[repeat(auto-fit,minmax(180px,240px))] gap-4">
+              <label><span class="label">Frequency</span>
+                <select id="testFreq" class="input">
+                  <option value="daily">Every day</option>
+                  <option value="every3">Every 3 days</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every 2 weeks</option>
+                </select>
+              </label>
+              <label><span class="label">Day (for weekly)</span><select id="testWeekday" class="input"></select></label>
+              <label><span class="label">Questions per test</span>
+                <select id="testQuestionCount" class="input">
+                  <option value="10">10</option><option value="20">20</option><option value="30">30</option>
+                </select>
+              </label>
+              <label><span class="label">Question type</span>
+                <select id="testType" class="input">
+                  <option value="mcq">Multiple choice</option>
+                  <option value="typing">Type the answer</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+              </label>
+            </div>
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+              <button class="btn" id="rescheduleBtn">Recompute next test date</button>
+              <span class="text-xs text-slate-500 dark:text-slate-400" id="nextTestInfo"></span>
+            </div>
+          </section>
+        </section>
+
+        <!-- Vocabulary -->
+        <section class="tab-panel hidden flex flex-col gap-6" data-panel="vocab">
+          <h1 class="text-xl font-bold">Vocabulary <span class="text-sm font-normal text-slate-500 dark:text-slate-400" id="vocabCount"></span></h1>
+
+          <section class="card">
+            <h2 class="mb-3 text-[15px] font-bold">Add a word manually</h2>
+            <div class="flex flex-wrap items-end gap-3">
+              <label class="min-w-[180px] flex-1"><span class="label">Word / phrase</span><input type="text" id="addTerm" class="input" placeholder="e.g. serendipity" /></label>
+              <label class="min-w-[180px] flex-1"><span class="label">Meaning (optional — auto-translated if empty)</span><input type="text" id="addTrans" class="input" placeholder="leave empty to auto-translate" /></label>
+              <button class="btn btn-primary" id="addBtn">Add</button>
+            </div>
+            <div id="addStatus" class="mt-2 min-h-[16px] text-xs text-brand-600"></div>
+          </section>
+
+          <section class="card">
+            <div class="mb-3 flex flex-wrap gap-2.5">
+              <input type="text" id="search" placeholder="Search…" class="input min-w-[200px] flex-1" />
+              <select id="filter" class="input w-auto">
+                <option value="all">All</option><option value="new">New</option>
+                <option value="learning">Learning</option><option value="mastered">Mastered</option>
+              </select>
+              <button class="btn" id="exportBtn">Export JSON</button>
+              <button class="btn" id="importBtn">Import JSON</button>
+              <input type="file" id="importFile" accept="application/json" hidden />
+            </div>
+
+            <!-- Selection → deck bar -->
+            <div class="mb-3 flex flex-wrap items-center gap-3 rounded-xl bg-slate-100 px-3 py-2 dark:bg-slate-900/40">
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="selectAll" class="accent-brand-600" /> Select all shown</label>
+              <span id="selCount" class="text-xs text-slate-500 dark:text-slate-400">0 selected</span>
+              <div class="ml-auto flex items-center gap-2">
+                <input type="text" id="deckName" class="input w-44" placeholder="New deck name…" />
+                <button class="btn btn-primary" id="createDeckBtn">Create deck</button>
+              </div>
+            </div>
+
+            <ul id="vocab" class="divide-y divide-slate-200 dark:divide-slate-700"></ul>
+          </section>
+        </section>
+
+        <!-- Flashcards -->
+        <section class="tab-panel hidden flex flex-col gap-3" data-panel="decks">
+          <h1 class="text-xl font-bold">Flashcards</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Group words into decks (in the Vocabulary tab) and study them here.</p>
+          <div id="decksList" class="mt-2 grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-5"></div>
+        </section>
+      </div>
+    </div>
+
+    <script src="store.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

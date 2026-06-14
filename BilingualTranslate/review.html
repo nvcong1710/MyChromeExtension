@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vimi Bilingual — Review</title>
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="tailwind.css" />
+  </head>
+  <body class="min-h-screen bg-slate-50 font-sans text-slate-800 dark:bg-slate-900 dark:text-slate-100">
+    <header class="flex items-center gap-3 bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-4 text-white">
+      <img src="icon48.png" alt="" class="h-9 w-9 rounded-lg" />
+      <div>
+        <div class="text-base font-bold leading-tight" id="title">Review</div>
+        <div class="text-xs text-white/80" id="sub">Spaced-repetition flashcards</div>
+      </div>
+    </header>
+
+    <div class="mx-auto max-w-2xl px-5 py-6">
+      <div class="mb-5 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+        <div id="bar" class="h-full w-0 rounded-full bg-brand-600 transition-[width] duration-300"></div>
+      </div>
+
+      <section class="card h-80" style="perspective: 1200px">
+        <div id="flash" class="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto py-2 text-center"></div>
+      </section>
+
+      <div id="controls" class="mt-5 flex justify-center"></div>
+    </div>
+
+    <script src="store.js"></script>
+    <script src="review.js"></script>
+  </body>
+</html>

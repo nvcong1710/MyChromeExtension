@@ -1,0 +1,143 @@
+/* ── Translation block ────────────────────────────────────────────────
+   Inserted right below each original block. Distinct enough that the
+   bilingual pairing reads clearly, but inherits the page's font so it
+   blends in. Light & dark variants via prefers-color-scheme. */
+.bt-translation {
+  display: block;
+  margin: 0.3em 0 0.95em;
+  padding: 0.1em 0 0.1em 0.8em;
+  border-left: 3px solid #1a73e8;
+  color: #1856c4;
+  font-family: inherit;
+  font-size: 0.95em;
+  line-height: 1.55;
+  letter-spacing: 0;
+  animation: bt-fade-in 0.22s ease both;
+}
+@keyframes bt-fade-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Status badge (top-right) ─────────────────────────────────────────── */
+#bt-badge {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 2147483647;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 70vw;
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #2b7cff 0%, #1557d6 100%);
+  color: #fff;
+  font: 600 12.5px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(21, 87, 214, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: bt-slide-in 0.25s ease both;
+}
+@keyframes bt-slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* When the badge becomes an actionable button (first-run model download),
+   it must receive clicks — that real click is the user gesture Chrome needs. */
+#bt-badge.bt-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+  background: linear-gradient(135deg, #ff9d2f 0%, #e8710a 100%);
+  box-shadow: 0 4px 14px rgba(232, 113, 10, 0.4);
+}
+#bt-badge.bt-clickable:hover { filter: brightness(1.05); }
+
+/* ── Toast (bottom-center) ────────────────────────────────────────────── */
+#bt-toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  max-width: 80vw;
+  padding: 11px 18px;
+  background: rgba(20, 22, 26, 0.92);
+  color: #fff;
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bt-translation {
+    color: #8ab4f8;
+    border-left-color: #8ab4f8;
+  }
+}
+
+/* ── Select-to-save popup ─────────────────────────────────────────────── */
+#fufu-sel-pop {
+  position: absolute;
+  z-index: 2147483647;
+  min-width: 150px;
+  max-width: 280px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #202124;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  animation: bt-fade-in 0.15s ease both;
+}
+#fufu-sel-pop .fufu-sp-term {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1a73e8;
+  word-break: break-word;
+}
+#fufu-sel-pop .fufu-sp-trans {
+  margin: 4px 0 10px;
+  color: #3c4043;
+  word-break: break-word;
+}
+#fufu-sel-pop .fufu-sp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#fufu-sel-pop button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+  background: #f6f8fc;
+  padding: 5px 8px;
+  color: #202124;
+}
+#fufu-sel-pop .fufu-sp-save {
+  flex: 1;
+  border: none;
+  background: #1a73e8;
+  color: #fff;
+  font-weight: 600;
+}
+#fufu-sel-pop .fufu-sp-save:hover { background: #1765cc; }
+#fufu-sel-pop .fufu-sp-save.saved { background: #1e8e3e; }
+#fufu-sel-pop .fufu-sp-speak { line-height: 1; }
+
+@media (prefers-color-scheme: dark) {
+  #fufu-sel-pop {
+    background: #2a2b2e;
+    color: #e8eaed;
+    border-color: #3c4043;
+  }
+  #fufu-sel-pop .fufu-sp-term { color: #8ab4f8; }
+  #fufu-sel-pop .fufu-sp-trans { color: #cdd1d6; }
+  #fufu-sel-pop button { background: #303134; color: #e8eaed; border-color: #3c4043; }
+}

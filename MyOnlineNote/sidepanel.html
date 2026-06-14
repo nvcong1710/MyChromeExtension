@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Online Note</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+
+<body>
+  <div id="app">
+    <!-- Top app bar -->
+    <header id="appbar">
+      <button id="menuBtn" class="appbar-btn" title="Danh sách trang">
+        <span class="hamb">☰</span><span class="appbar-btn-label">Trang</span>
+      </button>
+      <div class="appbar-spacer"></div>
+      <div id="modeSeg" class="seg">
+        <button class="seg-btn active" data-mode="write">Viết</button>
+        <button class="seg-btn" data-mode="preview">Xem</button>
+        <button class="seg-btn" data-mode="split" title="Chia đôi (viết + xem)">⊟</button>
+      </div>
+      <button id="themeBtn" class="icon-btn" title="Đổi giao diện">◐</button>
+      <button id="moreBtn" class="icon-btn" title="Thêm">⋯</button>
+    </header>
+
+    <div id="content">
+      <div id="scrim" hidden></div>
+
+      <!-- Page tree (drawer on narrow, docked on wide) -->
+      <aside id="sidebar" class="drawer">
+        <div class="sidebar-header">
+          <span class="brand-name">Trang của tôi</span>
+          <button id="newRootBtn" class="icon-btn" title="Trang mới">＋</button>
+        </div>
+
+        <div class="search-wrap">
+          <input id="searchInput" type="search" placeholder="Tìm trang…" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <nav id="tree" class="tree" aria-label="Cây ghi chú"></nav>
+
+        <div id="emptyTree" class="empty-tree" hidden>
+          <p>Chưa có trang nào.</p>
+          <button id="emptyCreateBtn" class="ghost-btn">＋ Tạo trang đầu tiên</button>
+        </div>
+      </aside>
+
+      <!-- Editor -->
+      <main id="main">
+        <div id="editorPane" hidden>
+          <div class="title-row">
+            <input id="titleInput" class="title-input" type="text" placeholder="Trang không tên" spellcheck="false" />
+            <span id="saveStatus" class="save-status"></span>
+          </div>
+          <div id="breadcrumb" class="breadcrumb"></div>
+
+          <div id="editorBody" class="editor-body" data-mode="write">
+            <textarea id="contentArea" class="content-area"
+              placeholder="Bắt đầu viết… Gõ '/' để chèn khối (tiêu đề, danh sách, việc cần làm, code…)"
+              spellcheck="false"></textarea>
+            <div id="previewArea" class="preview-area markdown"></div>
+          </div>
+
+          <div id="backlinks" class="backlinks" hidden></div>
+        </div>
+
+        <div id="welcome" class="welcome">
+          <div class="welcome-card">
+            <button id="welcomeCreateBtn" class="primary-btn">＋ Tạo trang mới</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <input id="importFile" type="file" accept=".json,.md,.markdown,.txt" hidden />
+
+    <!-- Popovers -->
+    <div id="moreMenu" class="ctx-menu" hidden></div>
+    <div id="slashMenu" class="slash-menu" hidden></div>
+    <div id="ctxMenu" class="ctx-menu" hidden></div>
+  </div>
+
+  <script src="markdown.js"></script>
+  <script src="sidepanel.js"></script>
+</body>
+
+</html>

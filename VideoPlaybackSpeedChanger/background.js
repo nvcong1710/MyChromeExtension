@@ -12,7 +12,6 @@ function createSpeedControlBox() {
   const MIN_SPEED = 0.0625;
   const MAX_SPEED = 16;
 
-  // If the box is already on the page, focus its input instead of duplicating.
   const existing = document.getElementById(BOX_ID);
   if (existing) {
     const inp = existing.querySelector("input");
@@ -58,12 +57,6 @@ function createSpeedControlBox() {
         color: #fff;
         margin-left: 10px;
       }
-      #${BOX_ID} .nvc-msg {
-        margin-top: 6px;
-        font-size: 12px;
-        color: #555;
-        min-height: 14px;
-      }
     `;
     document.head.appendChild(style);
   }
@@ -76,7 +69,6 @@ function createSpeedControlBox() {
   input.value = 1;
   input.placeholder = "Speed";
   input.step = "0.25";
-  input.min = String(MIN_SPEED);
   input.max = String(MAX_SPEED);
 
   const setButton = document.createElement("button");
@@ -85,34 +77,85 @@ function createSpeedControlBox() {
   const closeButton = document.createElement("button");
   closeButton.textContent = "X";
 
-  const msg = document.createElement("div");
-  msg.className = "nvc-msg";
+  // Per-tab guard state — lives only inside this box's closure.
+  // Other tabs are unaffected; closing the box (X) tears everything down.
+  let targetSpeed = null;
+  let observer = null;
+  const tracked = new Map();
 
   function clamp(s) {
     return Math.max(MIN_SPEED, Math.min(MAX_SPEED, s));
   }
 
-  setButton.addEventListener("click", function () {
-    const raw = parseFloat(input.value);
-    if (isNaN(raw) || raw <= 0) {
-      msg.textContent = "Enter a positive number.";
+  function applyTo(video) {
+    if (targetSpeed == null) return;
+    try {
+      video.playbackRate = targetSpeed;
+    } catch {
+      // Some sites lock playbackRate; ignore.
+    }
+  }
+
+  function trackVideo(video) {
+    if (tracked.has(video)) return;
+    const onMeta = () => applyTo(video);
+    video.addEventListener("loadedmetadata", onMeta);
+    tracked.set(video, { onMeta });
+    applyTo(video);
+  }
+
+  function scan(root) {
+    if (!root) return;
+    if (root.nodeType === 1 && root.tagName === "VIDEO") {
+      trackVideo(root);
       return;
     }
+    if (root.querySelectorAll) {
+      root.querySelectorAll("video").forEach(trackVideo);
+    }
+  }
+
+  function applyToAll() {
+    document.querySelectorAll("video").forEach((v) => {
+      trackVideo(v);
+      applyTo(v);
+    });
+  }
+
+  function startGuard(speed) {
+    targetSpeed = speed;
+    if (!observer) {
+      observer = new MutationObserver((mutations) => {
+        for (const m of mutations) m.addedNodes.forEach(scan);
+      });
+      observer.observe(document.documentElement || document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+    applyToAll();
+  }
+
+  function stopGuard() {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+    for (const [video, { onMeta }] of tracked) {
+      video.removeEventListener("loadedmetadata", onMeta);
+    }
+    tracked.clear();
+    targetSpeed = null;
+  }
+
+  setButton.addEventListener("click", function () {
+    const raw = parseFloat(input.value);
+    if (isNaN(raw) || raw <= 0) return;
     const speed = clamp(raw);
     if (speed !== raw) input.value = speed;
 
-    const videos = document.querySelectorAll("video");
-    if (videos.length === 0) {
-      msg.textContent = "No <video> elements found on this page.";
-      // Still persist — content.js will apply when a video appears.
-      chrome.storage.sync.set({ videoSpeed: speed });
-      return;
-    }
-    for (const video of videos) {
-      video.playbackRate = speed;
-    }
-    chrome.storage.sync.set({ videoSpeed: speed });
-    msg.textContent = `Applied ${speed}× to ${videos.length} video(s).`;
+    startGuard(speed);
+    chrome.storage.local.set({ videoSpeed: speed });
   });
 
   input.addEventListener("keydown", (e) => {
@@ -120,17 +163,24 @@ function createSpeedControlBox() {
   });
 
   closeButton.addEventListener("click", function () {
+    stopGuard();
     container.remove();
   });
 
   container.appendChild(input);
   container.appendChild(setButton);
   container.appendChild(closeButton);
-  container.appendChild(msg);
   document.body.appendChild(container);
 
-  chrome.storage.sync.get(["videoSpeed"], function (result) {
-    input.value = result.videoSpeed !== undefined ? result.videoSpeed : 1;
+  chrome.storage.local.get(["videoSpeed"], function (result) {
+    const saved = Number(result.videoSpeed);
+    if (!isNaN(saved) && saved > 0) {
+      const s = clamp(saved);
+      input.value = s;
+      startGuard(s);
+    } else {
+      input.value = 1;
+    }
     input.focus();
     input.select();
   });
