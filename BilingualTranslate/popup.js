@@ -17,6 +17,9 @@ const LANGS = [
 const F = self.FuFu;
 const $ = (id) => document.getElementById(id);
 const power = $("power");
+// Notification dot for Review/Test buttons (Tailwind classes, literal for purge).
+const DOT_CLASS =
+  "vm-dot absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[10px] leading-4 font-bold text-center";
 const srcSel = $("src");
 const tgtSel = $("tgt");
 
@@ -59,13 +62,14 @@ async function refreshStats() {
   $("dueNum").textContent = String(due);
   $("goalNum").textContent = `${learnedToday}/${cfg.dailyGoal}`;
   $("totalNum").textContent = String(vocab.length);
+  $("streakNum").textContent = String(await F.getStreak());
 
   // Review button: badge with due count
   const reviewBtn = $("review");
-  reviewBtn.querySelector(".bt-dot")?.remove();
+  reviewBtn.querySelector(".vm-dot")?.remove();
   if (due > 0) {
     const dot = document.createElement("span");
-    dot.className = "bt-dot";
+    dot.className = DOT_CLASS;
     dot.textContent = String(Math.min(due, 99));
     reviewBtn.appendChild(dot);
   }
@@ -73,10 +77,10 @@ async function refreshStats() {
   // Test button + note
   const pending = await F.getPendingTest();
   const testBtn = $("test");
-  testBtn.querySelector(".bt-dot")?.remove();
+  testBtn.querySelector(".vm-dot")?.remove();
   if (pending) {
     const dot = document.createElement("span");
-    dot.className = "bt-dot";
+    dot.className = DOT_CLASS;
     dot.textContent = "!";
     testBtn.appendChild(dot);
     $("testNote").textContent = `Test ready: ${pending.count} questions waiting`;

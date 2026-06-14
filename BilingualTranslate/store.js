@@ -110,6 +110,7 @@
     };
     list.push(w);
     await setVocab(list);
+    await recordActivity("added");
     return w;
   }
 
@@ -122,6 +123,45 @@
     const w = list.find((x) => x.id === id);
     if (w) Object.assign(w, patch);
     await setVocab(list);
+  }
+
+  // ── Flashcard decks ─────────────────────────────────────────────────
+  // A deck is a named set of word ids the user groups for focused study.
+  async function getDecks() {
+    const { fufuDecks } = await chrome.storage.local.get("fufuDecks");
+    return Array.isArray(fufuDecks) ? fufuDecks : [];
+  }
+  async function setDecks(list) {
+    await chrome.storage.local.set({ fufuDecks: list });
+  }
+  async function createDeck(name, wordIds) {
+    const decks = await getDecks();
+    const deck = {
+      id: uid(),
+      name: (name || "Untitled deck").trim(),
+      wordIds: Array.from(new Set(wordIds || [])),
+      createdAt: now(),
+    };
+    decks.push(deck);
+    await setDecks(decks);
+    return deck;
+  }
+  async function updateDeck(id, patch) {
+    const decks = await getDecks();
+    const d = decks.find((x) => x.id === id);
+    if (d) Object.assign(d, patch);
+    await setDecks(decks);
+  }
+  async function deleteDeck(id) {
+    await setDecks((await getDecks()).filter((d) => d.id !== id));
+  }
+  async function getDeckWords(id) {
+    const decks = await getDecks();
+    const deck = decks.find((d) => d.id === id);
+    if (!deck) return [];
+    const vocab = await getVocab();
+    const byId = new Map(vocab.map((w) => [w.id, w]));
+    return deck.wordIds.map((wid) => byId.get(wid)).filter(Boolean);
   }
 
   // ── SM-2 spaced repetition ──────────────────────────────────────────
@@ -152,6 +192,7 @@
     if (!w) return;
     applyGrade(w, grade);
     await setVocab(list);
+    await recordActivity("review");
   }
   async function dueWords() {
     const t = now();
@@ -162,6 +203,80 @@
   }
   async function learnedSince(ts) {
     return (await getVocab()).filter((w) => (w.createdAt || 0) >= ts);
+  }
+
+  // ── Activity / streak / stats ───────────────────────────────────────
+  const DAYMS = 86400000;
+  function toDayKey(ts) {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  async function getActivity() {
+    const { fufuActivity } = await chrome.storage.local.get("fufuActivity");
+    return fufuActivity && typeof fufuActivity === "object" ? fufuActivity : {};
+  }
+  async function recordActivity(kind) {
+    const a = await getActivity();
+    const k = toDayKey(now());
+    a[k] = a[k] || { reviews: 0, added: 0 };
+    if (kind === "review") a[k].reviews++;
+    else if (kind === "added") a[k].added++;
+    await chrome.storage.local.set({ fufuActivity: a });
+  }
+  function activeOn(a, key) {
+    const e = a[key];
+    return !!(e && (e.reviews || 0) + (e.added || 0) > 0);
+  }
+  // Current streak: consecutive active days ending today (or yesterday, so a
+  // streak isn't shown as broken until a full day is actually missed).
+  function streakFrom(a) {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    let t = start.getTime();
+    if (!activeOn(a, toDayKey(t))) {
+      t -= DAYMS;
+      if (!activeOn(a, toDayKey(t))) return 0;
+    }
+    let streak = 0;
+    while (activeOn(a, toDayKey(t))) { streak++; t -= DAYMS; }
+    return streak;
+  }
+  function bestStreakFrom(a) {
+    const days = Object.keys(a).filter((k) => activeOn(a, k)).sort();
+    let best = 0, run = 0, prev = null;
+    for (const k of days) {
+      const t = new Date(k + "T00:00:00").getTime();
+      run = prev !== null && t - prev === DAYMS ? run + 1 : 1;
+      best = Math.max(best, run);
+      prev = t;
+    }
+    return best;
+  }
+  async function getStreak() { return streakFrom(await getActivity()); }
+  async function getStats() {
+    const vocab = await getVocab();
+    const a = await getActivity();
+    const cfg = await getConfig();
+    const t = now();
+    const byStatus = { new: 0, learning: 0, mastered: 0 };
+    vocab.forEach((w) => { const s = w.status || "new"; if (byStatus[s] !== undefined) byStatus[s]++; });
+    const todayA = a[toDayKey(t)] || { reviews: 0, added: 0 };
+    let reviewsTotal = 0;
+    Object.values(a).forEach((e) => (reviewsTotal += e.reviews || 0));
+    const last14 = [];
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    for (let i = 13; i >= 0; i--) {
+      const dk = toDayKey(d0.getTime() - i * DAYMS);
+      const e = a[dk] || {};
+      last14.push({ day: dk, count: (e.reviews || 0) + (e.added || 0) });
+    }
+    return {
+      total: vocab.length, byStatus,
+      due: vocab.filter((w) => (w.due || 0) <= t).length,
+      reviewsToday: todayA.reviews || 0, addedToday: todayA.added || 0, reviewsTotal,
+      streak: streakFrom(a), best: bestStreakFrom(a),
+      last14, dailyGoal: cfg.dailyGoal, nextTestAt: cfg.nextTestAt,
+    };
   }
 
   // ── Test scheduling ─────────────────────────────────────────────────
@@ -287,11 +402,20 @@
     addWord,
     deleteWord,
     updateWord,
+    getDecks,
+    createDeck,
+    updateDeck,
+    deleteDeck,
+    getDeckWords,
     applyGrade,
     review,
     dueWords,
     dueCount,
     learnedSince,
+    recordActivity,
+    getActivity,
+    getStreak,
+    getStats,
     computeNextTest,
     ensureSchedule,
     getTest,
