@@ -30,10 +30,16 @@
     lastTestAt: 0,
     nextTestAt: 0,
     mascotEnabled: true, // show the Vimi mascot on pages
+    transColor: "", // custom translation text color ("" = theme default)
+    // ── Reading aids (in-page, opt-in) ──
+    highlightSaved: false, // underline words you've saved when you meet them again
+    inlineLearn: false, // "sprinkle": swap a few saved words for their translation
+    revealMode: false, // hide full-page translations until you hover the original
   };
 
   const now = () => Date.now();
   const uid = () => now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const escapeRegExp = (s) => (s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   function shuffle(a) {
     for (let i = a.length - 1; i > 0; i--) {
@@ -76,7 +82,7 @@
     await chrome.storage.local.set({ fufuVocab: list });
   }
 
-  async function addWord({ term, translation, src, tgt, context, url }) {
+  async function addWord({ term, translation, src, tgt, context, url, note }) {
     term = (term || "").trim();
     if (!term) return null;
     const cfg = await getConfig();
@@ -89,6 +95,7 @@
     if (existing) {
       if (!existing.translation && translation) existing.translation = translation;
       if (!existing.context && context) existing.context = context;
+      if (!existing.note && note) existing.note = note;
       await setVocab(list);
       return existing;
     }
@@ -99,6 +106,7 @@
       src,
       tgt,
       context: context || "",
+      note: (note || "").trim(), // user's own example / collocation / mnemonic
       url: url || "",
       createdAt: now(),
       ease: 2.5,
@@ -310,14 +318,43 @@
     await chrome.storage.local.set({ fufuTest: t });
   }
 
+  // Build a fill-in-the-blank prompt from a word's saved context sentence by
+  // blanking out the term (whole word, case-insensitive). Returns null if the
+  // word has no usable sentence containing it — the caller then falls back to
+  // another question type.
+  function clozePrompt(w) {
+    const ctx = (w.context || "").trim();
+    if (!ctx || ctx.length < w.term.length + 5) return null;
+    const re = new RegExp(`(^|[^\\p{L}])(${escapeRegExp(w.term)})(?=[^\\p{L}]|$)`, "iu");
+    if (!re.test(ctx)) return null;
+    const blanked = ctx.replace(re, (_m, pre) => pre + "____");
+    return blanked.length > 280 ? blanked.slice(0, 280) + "…" : blanked;
+  }
+
   function buildQuestions(words, allWords, count, type) {
     const pool = shuffle(words.filter((w) => w.translation && w.term));
     const picked = pool.slice(0, count);
     const distract = allWords.filter((w) => w.translation && w.term);
+    const cycle = ["mcq", "typing", "cloze"]; // for "mixed"
     return picked.map((w, i) => {
+      let qtype = type === "mixed" ? cycle[i % cycle.length] : type;
+      // Cloze needs a usable context sentence; fall back to typing if none.
+      if (qtype === "cloze") {
+        const prompt = clozePrompt(w);
+        if (prompt) {
+          return {
+            id: w.id,
+            prompt,
+            answer: w.term,
+            hint: w.translation, // shown as a meaning hint under the blank
+            direction: "cloze",
+            type: "cloze",
+          };
+        }
+        qtype = "typing";
+      }
       const t2m = i % 2 === 0; // alternate direction
-      const typing =
-        type === "typing" || (type === "mixed" && i % 2 === 1);
+      const typing = qtype === "typing";
       const answer = t2m ? w.translation : w.term;
       const q = {
         id: w.id,
@@ -388,6 +425,29 @@
     return { correct, total: t.questions.length };
   }
 
+  // ── Full backup / restore ───────────────────────────────────────────
+  // Everything lives in chrome.storage.local, which is wiped if the extension
+  // is removed or the user switches machines. These let the user keep a single
+  // file with their entire learning history (settings, words, decks, streak).
+  const BACKUP_KEYS = [
+    "fufuConfig", "fufuVocab", "fufuHosts", "fufuDecks", "fufuTest", "fufuActivity",
+  ];
+  async function exportAll() {
+    const data = await chrome.storage.local.get(BACKUP_KEYS);
+    return { app: "vimi-bilingual", schema: 2, exportedAt: now(), data };
+  }
+  // Replace local data with a backup's contents. Only keys present in the
+  // backup are written, so an older backup won't clobber newer unrelated keys.
+  async function restoreAll(payload) {
+    const data = payload && payload.data ? payload.data : null;
+    if (!data || typeof data !== "object") throw new Error("Not a Vimi backup");
+    const patch = {};
+    for (const k of BACKUP_KEYS) if (k in data) patch[k] = data[k];
+    if (!Object.keys(patch).length) throw new Error("Backup is empty");
+    await chrome.storage.local.set(patch);
+    return Object.keys(patch).length;
+  }
+
   self.FuFu = {
     DAY,
     now,
@@ -422,7 +482,11 @@
     getPendingTest,
     setTest,
     buildQuestions,
+    clozePrompt,
     createTestNow,
     completeTest,
+    escapeRegExp,
+    exportAll,
+    restoreAll,
   };
 })();

@@ -1,10 +1,69 @@
 # Vimi Bilingual — Changelog
 
+## v2.1.0
+
+Turns everyday browsing into review and makes your data portable. Still
+**100% on-device** — no account, no server, no tracking.
+
+### New — Reading aids (Settings → General → Reading aids)
+- **Highlight saved words**: when you meet a word you've already saved on any
+  page, Vimi underlines it — hover to see its meaning and context.
+- **Sprinkle translations**: optionally swaps a few of your saved words on a
+  page for their translation (Toucan-style passive learning); click a word to
+  flip it back to the original. Capped per page so reading stays readable.
+- **Reveal-on-hover mode**: blurs in-page translations until you hover the
+  original, so you read the source first and only peek when stuck.
+
+### New — Learn deeper
+- **Fill-in-the-blank (cloze) tests**: a new question type that blanks the word
+  out of the real sentence you saved it from, with the meaning as a hint. Pick
+  it under Reminders & Tests → Question type, or get it in “Mixed”.
+- **Notes / examples on words**: add your own example, collocation or mnemonic
+  when saving a word; it shows under the word and travels with exports.
+
+### New — Backup & data portability
+- **Full backup & restore**: one file with everything — words, decks, streak,
+  settings and history — to keep safe or move to another computer
+  (Settings → General → Backup & restore).
+- **CSV export / import**: Anki-friendly CSV alongside the existing JSON, so
+  your vocabulary moves freely in and out of Vimi.
+
+### New — Quick controls
+- **Show/hide Vimi from the popup**: a mascot toggle right in the toolbar panel
+  — open tabs show or hide her instantly, no reload.
+- The in-page status badge (language pair / download progress) is now larger and
+  **auto-hides after a few seconds** so it never covers a page's own controls.
+
+### New — Onboarding
+- A first-run welcome page explains on-device translation, checks browser
+  compatibility, lets you pick your languages, and shows how to start.
+
 ## v2.0.1
 
 A major upgrade that turns Vimi from a translator into a full language-learning
 companion. Everything runs **100% on your device** (Chrome's built-in Translator)
 — no account, no server, no tracking.
+
+### New — Reading & appearance
+- **Custom translation color**: pick the color of in-page translations in
+  Settings → General → Appearance (with a Reset to default). Applies live to
+  open tabs.
+- **Auto-translate site list**: Settings → General now lists every site set to
+  translate automatically; remove one (or disable all) to stop — open tabs turn
+  off immediately.
+
+### Fixed — Translation accuracy & layout
+- **Tables no longer break**: a translation inside a table cell or list item is
+  now placed *inside* it instead of becoming a stray cell/item that shoved the
+  real cells sideways.
+- **Buttons, links & icons**: button bars, nav/link clusters and cookie banners
+  are no longer translated as one garbled blob, and icon-font glyphs / emoji are
+  stripped before translating so they don't leak stray characters into the output.
+- **Hidden content is skipped**: hover tooltips and collapsed menus (laid out but
+  invisible) are no longer translated, so injected text can't pop in and break the
+  layout on hover.
+- **Vimi's quick menu** relabels its translate action to “Show original page”
+  while a page is translated.
 
 ### New — Vocabulary learning
 - **Highlight to save**: select any word/phrase on a page to save it with its

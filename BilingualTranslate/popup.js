@@ -100,6 +100,7 @@ async function init() {
   const cfg = await F.getConfig();
   srcSel.value = cfg.src || "en";
   tgtSel.value = cfg.tgt || "vi";
+  $("mascot").checked = cfg.mascotEnabled !== false;
 
   if (usable) {
     $("host").textContent = host;
@@ -115,6 +116,11 @@ async function init() {
 }
 
 power.addEventListener("change", () => send("BT_TOGGLE"));
+
+// Show/hide the mascot. Open tabs react live via mascot.js's storage listener.
+$("mascot").addEventListener("change", () => {
+  F.setConfig({ mascotEnabled: $("mascot").checked });
+});
 
 async function saveLangs() {
   await F.setConfig({ src: srcSel.value, tgt: tgtSel.value });

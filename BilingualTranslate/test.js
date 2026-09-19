@@ -11,6 +11,7 @@ function escapeHtml(s) {
   return (s || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 function dirLabel(d, src, tgt) {
+  if (d === "cloze") return "Fill in the missing word";
   return d === "t2m" ? `Translate ${src} → ${tgt}` : `Translate ${tgt} → ${src}`;
 }
 
@@ -40,7 +41,7 @@ function renderTest(t) {
 
   const qs = t.questions.map((q, i) => {
     const head = `<div class="font-semibold">${i + 1}. ${escapeHtml(q.prompt)}</div>
-      <div class="mb-2.5 text-[11.5px] text-slate-500 dark:text-slate-400">${dirLabel(q.direction, t.src, t.tgt)}</div>`;
+      <div class="mb-2.5 text-[11.5px] text-slate-500 dark:text-slate-400">${dirLabel(q.direction, t.src, t.tgt)}${q.hint ? ` · meaning: <b>${escapeHtml(q.hint)}</b>` : ""}</div>`;
     if (q.type === "mcq") {
       const opts = q.options.map((o) =>
         `<label class="opt flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 hover:bg-brand-50/60 dark:border-slate-700 dark:hover:bg-slate-700/40">
