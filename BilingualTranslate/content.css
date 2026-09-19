@@ -6,8 +6,8 @@
   display: block;
   margin: 0.3em 0 0.95em;
   padding: 0.1em 0 0.1em 0.8em;
-  border-left: 3px solid #1a73e8;
-  color: #1856c4;
+  border-left: 3px solid var(--bt-trans-color, #1a73e8);
+  color: var(--bt-trans-color, #1856c4);
   font-family: inherit;
   font-size: 0.95em;
   line-height: 1.55;
@@ -19,29 +19,72 @@
   to   { opacity: 1; transform: none; }
 }
 
+/* ── Reading aids ──────────────────────────────────────────────────────
+   "Reveal" mode: keep translations present but veiled until the reader hovers
+   the original block, so they read the source first and only peek when stuck. */
+html.vimi-reveal .bt-translation {
+  filter: blur(4px);
+  opacity: 0.45;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+html.vimi-reveal .bt-translation:hover,
+html.vimi-reveal *:hover + .bt-translation {
+  filter: none;
+  opacity: 1;
+}
+
+/* Saved-word highlight: a soft dotted underline; the meaning is the tooltip. */
+.vimi-vocab.vimi-hl {
+  border-bottom: 2px dotted var(--bt-trans-color, #1a73e8);
+  cursor: help;
+  text-decoration: none;
+}
+/* Inline "sprinkle": a saved word shown in its translation, click to flip. */
+.vimi-vocab.vimi-replace {
+  color: var(--bt-trans-color, #1856c4);
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 1px dashed currentColor;
+}
+.vimi-vocab.vimi-replace[data-showing="orig"] {
+  font-weight: inherit;
+  opacity: 0.85;
+}
+@media (prefers-color-scheme: dark) {
+  .vimi-vocab.vimi-hl { border-bottom-color: var(--bt-trans-color, #8ab4f8); }
+  .vimi-vocab.vimi-replace { color: var(--bt-trans-color, #8ab4f8); }
+}
+
 /* ── Status badge (top-right) ─────────────────────────────────────────── */
 #bt-badge {
   position: fixed;
-  top: 14px;
-  right: 14px;
+  top: 16px;
+  right: 16px;
   z-index: 2147483647;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   max-width: 70vw;
-  padding: 6px 12px;
+  padding: 9px 16px;
   background: linear-gradient(135deg, #2b7cff 0%, #1557d6 100%);
   color: #fff;
-  font: 600 12.5px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 600 14px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   border-radius: 999px;
-  box-shadow: 0 4px 14px rgba(21, 87, 214, 0.35);
+  box-shadow: 0 4px 16px rgba(21, 87, 214, 0.4);
   white-space: nowrap;
   pointer-events: none;
   animation: bt-slide-in 0.25s ease both;
+  transition: opacity 0.4s ease, transform 0.4s ease;
 }
 @keyframes bt-slide-in {
   from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: none; }
+}
+/* Faded out after the informational badge has been shown for a few seconds. */
+#bt-badge.bt-hidden {
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
 }
 
 /* When the badge becomes an actionable button (first-run model download),
@@ -75,8 +118,8 @@
 
 @media (prefers-color-scheme: dark) {
   .bt-translation {
-    color: #8ab4f8;
-    border-left-color: #8ab4f8;
+    color: var(--bt-trans-color, #8ab4f8);
+    border-left-color: var(--bt-trans-color, #8ab4f8);
   }
 }
 

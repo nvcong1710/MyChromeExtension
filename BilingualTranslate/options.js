@@ -74,9 +74,87 @@ async function loadSettings() {
   $("testEnabled").checked = cfg.testEnabled; $("testFreq").value = cfg.testFreq;
   $("testWeekday").value = String(cfg.testWeekday); $("testQuestionCount").value = String(cfg.testQuestionCount);
   $("testType").value = cfg.testType; $("mascotEnabled").checked = cfg.mascotEnabled !== false;
+  $("transColor").value = cfg.transColor || "#1856c4";
+  $("highlightSaved").checked = !!cfg.highlightSaved;
+  $("inlineLearn").checked = !!cfg.inlineLearn;
+  $("revealMode").checked = !!cfg.revealMode;
   showNextTest(cfg);
 }
 
+// Push an appearance change to every open tab so in-page translations restyle
+// live (no re-translation). Needs host access, which the extension already has.
+function broadcastStyle() {
+  chrome.tabs.query({}, (tabs) => {
+    for (const t of tabs) {
+      if (t.id != null) chrome.tabs.sendMessage(t.id, { type: "BT_STYLE" }, () => void chrome.runtime.lastError);
+    }
+  });
+}
+
+// ── Auto-translate sites ────────────────────────────────────────────────────
+// Tell any open tab on this host to stop translating now (storage is already
+// updated; this just avoids needing a reload).
+function turnOffHostTabs(host) {
+  chrome.tabs.query({}, (tabs) => {
+    for (const t of tabs) {
+      let h = "";
+      try { h = new URL(t.url || "").hostname; } catch {}
+      if (h === host && t.id != null) {
+        chrome.tabs.sendMessage(t.id, { type: "BT_OFF" }, () => void chrome.runtime.lastError);
+      }
+    }
+  });
+}
+
+async function renderSites() {
+  const hosts = await F.getHosts();
+  const names = Object.keys(hosts).sort();
+  $("sitesCount").textContent = names.length ? `(${names.length})` : "";
+  $("clearSites").classList.toggle("hidden", !names.length);
+  const ul = $("sitesList");
+  ul.innerHTML = "";
+  if (!names.length) {
+    ul.innerHTML = `<li class="py-3 text-sm text-slate-500 dark:text-slate-400">No sites yet. Turn on translation for a page from the popup or Vimi's menu.</li>`;
+    return;
+  }
+  for (const host of names) {
+    const li = document.createElement("li");
+    li.className = "flex items-center gap-3 py-2.5 text-[15px]";
+    li.innerHTML = `
+      <span class="shrink-0 text-sm">🌐</span>
+      <a class="min-w-0 flex-1 truncate text-brand-600 hover:underline" href="https://${escapeHtml(host)}" target="_blank" rel="noopener">${escapeHtml(host)}</a>
+      <button class="srem text-sm font-semibold text-red-600 hover:underline">Remove</button>`;
+    li.querySelector(".srem").addEventListener("click", async () => {
+      await F.setHostEnabled(host, false);
+      turnOffHostTabs(host);
+      renderSites();
+    });
+    ul.appendChild(li);
+  }
+}
+$("clearSites").addEventListener("click", async () => {
+  const hosts = Object.keys(await F.getHosts());
+  for (const host of hosts) {
+    await F.setHostEnabled(host, false);
+    turnOffHostTabs(host);
+  }
+  renderSites();
+});
+
+$("transColor").addEventListener("input", async () => {
+  await F.setConfig({ transColor: $("transColor").value });
+  flashSaved();
+  broadcastStyle();
+});
+$("transColorReset").addEventListener("click", async () => {
+  await F.setConfig({ transColor: "" });
+  $("transColor").value = "#1856c4";
+  flashSaved();
+  broadcastStyle();
+});
+
+// Reading aids apply live in open tabs (BT_STYLE re-reads them, no reload).
+const READING_IDS = ["highlightSaved", "inlineLearn", "revealMode"];
 function bindSetting(id, key, transform) {
   $(id).addEventListener("change", async () => {
     const el = $(id);
@@ -84,6 +162,7 @@ function bindSetting(id, key, transform) {
     if (transform) v = transform(v);
     await F.setConfig({ [key]: v });
     flashSaved();
+    if (READING_IDS.includes(id)) broadcastStyle();
     if (["testFreq", "testWeekday", "reminderHour"].includes(id)) {
       const cfg = await F.getConfig();
       await F.setConfig({ nextTestAt: F.computeNextTest(F.now(), cfg) });
@@ -98,6 +177,8 @@ bindSetting("testEnabled", "testEnabled"); bindSetting("testFreq", "testFreq");
 bindSetting("testWeekday", "testWeekday", (v) => parseInt(v, 10));
 bindSetting("testQuestionCount", "testQuestionCount", (v) => parseInt(v, 10));
 bindSetting("testType", "testType"); bindSetting("mascotEnabled", "mascotEnabled");
+bindSetting("highlightSaved", "highlightSaved"); bindSetting("inlineLearn", "inlineLearn");
+bindSetting("revealMode", "revealMode");
 
 $("rescheduleBtn").addEventListener("click", async () => {
   const cfg = await F.getConfig();
@@ -133,8 +214,9 @@ $("addBtn").addEventListener("click", async () => {
   const cfg = await F.getConfig();
   let trans = $("addTrans").value.trim();
   if (!trans) trans = await autoTranslate(term, cfg);
-  await F.addWord({ term, translation: trans, src: cfg.src, tgt: cfg.tgt });
-  $("addTerm").value = ""; $("addTrans").value = "";
+  const note = $("addNote").value.trim();
+  await F.addWord({ term, translation: trans, src: cfg.src, tgt: cfg.tgt, note });
+  $("addTerm").value = ""; $("addTrans").value = ""; $("addNote").value = "";
   $("addStatus").textContent = "Added ✓";
   setTimeout(() => ($("addStatus").textContent = ""), 1500);
   renderVocab();
@@ -166,12 +248,16 @@ async function renderVocab() {
   const STATUS = { new: "bg-brand-50 text-brand-700", learning: "bg-orange-100 text-orange-700", mastered: "bg-green-100 text-green-700" };
   for (const w of list) {
     const status = w.status || "new";
+    const sub = w.note || w.context || "";
     const li = document.createElement("li");
     li.className = "flex items-center gap-3 py-3 text-[15px]";
     li.innerHTML = `
       <input type="checkbox" class="vsel h-4 w-4 accent-brand-600" data-id="${w.id}" ${selected.has(w.id) ? "checked" : ""} />
       <span class="min-w-[150px] font-semibold">${escapeHtml(w.term)}</span>
-      <span class="vtrans flex-1 text-slate-600 dark:text-slate-300">${escapeHtml(w.translation || "—")}</span>
+      <div class="flex-1 min-w-0">
+        <span class="vtrans text-slate-600 dark:text-slate-300">${escapeHtml(w.translation || "—")}</span>
+        ${sub ? `<div class="truncate text-xs text-slate-400 dark:text-slate-500" title="${escapeHtml(sub)}">${w.note ? "📝 " : "“"}${escapeHtml(sub)}${w.note ? "" : "”"}</div>` : ""}
+      </div>
       <span class="chip ${STATUS[status]}">${status}</span>
       <button class="vedit text-sm font-semibold text-brand-600 hover:underline" title="Edit meaning">Edit</button>
       <button class="vdel text-sm font-semibold text-red-600 hover:underline">Delete</button>`;
@@ -241,6 +327,107 @@ $("importFile").addEventListener("change", async (e) => {
     }
     await F.setVocab(existing); renderVocab();
   } catch { alert("Import failed: invalid JSON file."); }
+  e.target.value = "";
+});
+
+// ── Full backup / restore (everything, not just vocab) ────────────────────────
+function downloadBlob(text, filename, mime) {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+function flashBackup(msg, ok = true) {
+  const el = $("backupStatus");
+  el.textContent = msg;
+  el.className = "mt-2 min-h-[16px] text-xs " + (ok ? "text-brand-600" : "text-red-600");
+  if (ok) setTimeout(() => (el.textContent = ""), 2500);
+}
+$("backupBtn").addEventListener("click", async () => {
+  const payload = await F.exportAll();
+  const stamp = new Date().toISOString().slice(0, 10);
+  downloadBlob(JSON.stringify(payload, null, 2), `vimi-backup-${stamp}.json`, "application/json");
+  flashBackup("Backup downloaded ✓");
+});
+$("restoreBtn").addEventListener("click", () => $("restoreFile").click());
+$("restoreFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  if (!confirm("Restore will replace your current words, decks, settings and history with the backup. Continue?")) {
+    e.target.value = ""; return;
+  }
+  try {
+    const payload = JSON.parse(await file.text());
+    const n = await F.restoreAll(payload);
+    flashBackup(`Restored ${n} section(s) ✓ — reloading…`);
+    loadSettings(); renderSites(); renderVocab();
+    setTimeout(() => location.reload(), 900);
+  } catch (err) {
+    flashBackup("Restore failed: " + (err.message || "invalid backup file"), false);
+  }
+  e.target.value = "";
+});
+
+// ── CSV export / import (Anki-friendly) ───────────────────────────────────────
+const CSV_COLS = ["term", "translation", "context", "note", "src", "tgt", "status"];
+function csvCell(v) {
+  v = v == null ? "" : String(v);
+  return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function parseCSV(text) {
+  const rows = []; let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c.trim() !== ""));
+}
+$("exportCsvBtn").addEventListener("click", async () => {
+  const vocab = await F.getVocab();
+  const lines = [CSV_COLS.join(",")];
+  for (const w of vocab) lines.push(CSV_COLS.map((c) => csvCell(w[c])).join(","));
+  downloadBlob(lines.join("\r\n"), "vimi-vocabulary.csv", "text/csv");
+});
+$("importCsvBtn").addEventListener("click", () => $("importCsvFile").click());
+$("importCsvFile").addEventListener("change", async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const rows = parseCSV(await file.text());
+    if (!rows.length) throw new Error("empty");
+    // Map columns by header if the first row looks like one; else assume order.
+    const header = rows[0].map((h) => h.trim().toLowerCase());
+    const hasHeader = header.includes("term");
+    const idx = (name) => (hasHeader ? header.indexOf(name) : CSV_COLS.indexOf(name));
+    const dataRows = hasHeader ? rows.slice(1) : rows;
+    const cfg = await F.getConfig();
+    let added = 0;
+    const existing = await F.getVocab();
+    const seen = new Set(existing.map((w) => `${(w.term || "").toLowerCase()}|${w.tgt}`));
+    for (const r of dataRows) {
+      const get = (n) => { const i = idx(n); return i >= 0 ? (r[i] || "").trim() : ""; };
+      const term = get("term");
+      if (!term) continue;
+      const tgt = get("tgt") || cfg.tgt;
+      const key = `${term.toLowerCase()}|${tgt}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      existing.push({
+        id: F.uid(), term, translation: get("translation"), context: get("context"),
+        note: get("note"), src: get("src") || cfg.src, tgt, url: "",
+        createdAt: F.now(), ease: 2.5, interval: 0, reps: 0, lapses: 0,
+        due: F.now(), status: get("status") || "new",
+      });
+      added++;
+    }
+    await F.setVocab(existing); renderVocab();
+    alert(`Imported ${added} new word(s) from CSV.`);
+  } catch { alert("Import failed: could not read that CSV file."); }
   e.target.value = "";
 });
 
@@ -422,5 +609,6 @@ function showTab(name) {
 navButtons.forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
 loadSettings();
+renderSites();
 renderVocab();
 showTab("dashboard");

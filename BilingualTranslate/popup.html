@@ -9,10 +9,14 @@
     <!-- Header -->
     <header class="flex items-center gap-3 bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-3 text-white">
       <img src="icon48.png" alt="" class="h-8 w-8 rounded-lg" />
-      <div>
+      <div class="min-w-0">
         <div class="text-[15px] font-bold leading-tight">Vimi Bilingual</div>
         <div class="text-[11px] text-white/80">Read bilingual · learn vocabulary</div>
       </div>
+      <button id="opts" title="Settings"
+        class="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-white/15 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-white/25">
+        ⚙️ <span>Settings</span>
+      </button>
     </header>
 
     <main class="flex flex-col gap-3 p-3.5">
@@ -40,6 +44,19 @@
         <label class="min-w-0 flex-1">
           <span class="label">To</span>
           <select id="tgt" class="input"></select>
+        </label>
+      </section>
+
+      <!-- Mascot toggle -->
+      <section class="card flex items-center justify-between p-3.5">
+        <div class="min-w-0">
+          <div class="text-sm font-semibold">Show Vimi mascot</div>
+          <div class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">The companion on your pages</div>
+        </div>
+        <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+          <input type="checkbox" id="mascot" class="peer sr-only" />
+          <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40 dark:bg-slate-600"></div>
+          <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
         </label>
       </section>
 
@@ -80,7 +97,6 @@
       +
       <kbd class="rounded border border-b-2 border-slate-300 bg-slate-50 px-1.5 text-[11px] text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">T</kbd>
       <span class="flex-1">to toggle translation</span>
-      <button id="opts" class="font-semibold text-brand-600 hover:underline">Settings</button>
     </footer>
 
     <script src="store.js"></script>

@@ -63,6 +63,8 @@
   let loopTimer = null;
   let bubbleTimer = null;
   let poseTimer = null;
+  let mascotVisible = false; // currently shown on this page
+  let boundGlobal = false; // document/window listeners attached once
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -361,8 +363,14 @@
     const due = await F.dueCount();
     const pending = await F.getPendingTest();
     menu.innerHTML = "";
-    addMenu("👉 Poke Vimi", poke, false, true); // keep menu open to poke again
-    addMenu("🌐 Translate this page", () => window.__vimi?.toggle?.());
+    addMenu("👉 Poke Vimi", poke); // hide menu after poking, like other items
+    // Label reflects the tab's current translation state (menu is rebuilt on
+    // each open, so it stays in sync).
+    const translating = !!window.__vimi?.isOn?.();
+    addMenu(
+      translating ? "🌐 Show original page" : "🌐 Translate this page",
+      () => window.__vimi?.toggle?.(),
+    );
     addMenu(`📚 Review${due ? ` (${due})` : ""}`, () => open("review.html"));
     addMenu(pending ? "📝 Take test ●" : "📝 Practice test", () =>
       open("test.html"),
@@ -429,8 +437,11 @@
     });
     chrome.storage.onChanged.addListener((ch, area) => {
       if (area !== "local") return;
-      if (ch.mascotEnabled && ch.mascotEnabled.newValue === false)
-        host?.remove();
+      // Show / hide live when the toggle flips (popup panel or Settings).
+      if (ch.mascotEnabled) {
+        if (ch.mascotEnabled.newValue === false) hideMascot();
+        else showMascot();
+      }
       // Review/Test finished in another tab → celebrate.
       if (ch.fufuCelebrate && ch.fufuCelebrate.newValue) {
         cancelMotion();
@@ -453,19 +464,33 @@
       );
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────
-  async function init() {
-    const cfg = await F.getConfig();
-    if (cfg.mascotEnabled === false) return;
+  // ── Show / hide ────────────────────────────────────────────────────────
+  async function showMascot() {
+    if (mascotVisible || destroyed) return;
+    mascotVisible = true;
     window.__vimiMascotLoaded = true;
     build();
     setPose("idle");
     await restorePosition();
     bindDrag();
-    bindOutside();
-    bindEvents();
+    if (!boundGlobal) { bindOutside(); boundGlobal = true; } // attach once
     greet();
     scheduleLoop();
+  }
+  function hideMascot() {
+    if (!mascotVisible) return;
+    mascotVisible = false;
+    clearTimeout(loopTimer);
+    clearTimeout(bubbleTimer);
+    clearTimeout(poseTimer);
+    host?.remove();
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  async function init() {
+    bindEvents(); // listen even while hidden, so the toggle can show her live
+    const cfg = await F.getConfig();
+    if (cfg.mascotEnabled !== false) showMascot();
   }
 
   init();

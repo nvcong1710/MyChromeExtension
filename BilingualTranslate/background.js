@@ -12,7 +12,7 @@ importScripts("store.js");
 const F = self.FuFu;
 
 // ── Setup ───────────────────────────────────────────────────────────────
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   chrome.contextMenus.create({
     id: "fufu-add",
     title: 'Add “%s” to Vimi vocab',
@@ -21,6 +21,10 @@ chrome.runtime.onInstalled.addListener(async () => {
   await F.ensureSchedule();
   scheduleTick();
   refresh();
+  // First-run onboarding: explain the on-device model and how to start.
+  if (details.reason === "install") {
+    chrome.tabs.create({ url: chrome.runtime.getURL("welcome.html") });
+  }
 });
 
 chrome.runtime.onStartup.addListener(() => {
