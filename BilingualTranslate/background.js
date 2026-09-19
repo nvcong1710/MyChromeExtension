@@ -134,10 +134,35 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await updateBadge();
 });
 
-// ── Mascot: open a page in a new tab ──────────────────────────────────────
-chrome.runtime.onMessage.addListener((msg) => {
+// ── Messages from content scripts & pages ────────────────────────────────
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === "VIMI_OPEN" && msg.page) {
     chrome.tabs.create({ url: chrome.runtime.getURL(msg.page) });
+    return;
+  }
+
+  // Fallback translation endpoint (used when on-device Translator API is unavailable)
+  if (msg?.type === "FUFU_TRANSLATE") {
+    (async () => {
+      try {
+        const text = (msg.text || "").trim();
+        if (!text) {
+          sendResponse({ translation: "" });
+          return;
+        }
+        const src = msg.src || "auto";
+        const tgt = msg.tgt || "vi";
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(src)}&tl=${encodeURIComponent(tgt)}&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const translated = (data[0] || []).map((seg) => seg[0]).join("");
+        sendResponse({ translation: translated });
+      } catch (err) {
+        sendResponse({ error: err.message || String(err) });
+      }
+    })();
+    return true; // Keep sendResponse active asynchronously
   }
 });
 

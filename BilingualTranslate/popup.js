@@ -101,6 +101,7 @@ async function init() {
   srcSel.value = cfg.src || "en";
   tgtSel.value = cfg.tgt || "vi";
   $("mascot").checked = cfg.mascotEnabled !== false;
+  $("videoSub").checked = cfg.videoSubEnabled !== false;
 
   if (usable) {
     $("host").textContent = host;
@@ -120,6 +121,11 @@ power.addEventListener("change", () => send("BT_TOGGLE"));
 // Show/hide the mascot. Open tabs react live via mascot.js's storage listener.
 $("mascot").addEventListener("change", () => {
   F.setConfig({ mascotEnabled: $("mascot").checked });
+});
+
+// Toggle video bilingual subtitles.
+$("videoSub").addEventListener("change", () => {
+  F.setConfig({ videoSubEnabled: $("videoSub").checked });
 });
 
 async function saveLangs() {

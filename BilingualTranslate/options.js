@@ -78,6 +78,15 @@ async function loadSettings() {
   $("highlightSaved").checked = !!cfg.highlightSaved;
   $("inlineLearn").checked = !!cfg.inlineLearn;
   $("revealMode").checked = !!cfg.revealMode;
+  $("optVideoSubEnabled").checked = cfg.videoSubEnabled !== false;
+  $("optVideoSubAutoPause").checked = !!cfg.videoSubAutoPause;
+  $("optVideoSubHighlightVocab").checked = cfg.videoSubHighlightVocab !== false;
+  document.querySelectorAll("#subLayoutSeg [data-sublayout]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.sublayout === (cfg.videoSubLayout || "bilingual"));
+  });
+  document.querySelectorAll("#subSizeSeg [data-subsize]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.subsize === (cfg.videoSubSize || "md"));
+  });
   showNextTest(cfg);
 }
 
@@ -179,6 +188,31 @@ bindSetting("testQuestionCount", "testQuestionCount", (v) => parseInt(v, 10));
 bindSetting("testType", "testType"); bindSetting("mascotEnabled", "mascotEnabled");
 bindSetting("highlightSaved", "highlightSaved"); bindSetting("inlineLearn", "inlineLearn");
 bindSetting("revealMode", "revealMode");
+bindSetting("optVideoSubEnabled", "videoSubEnabled");
+bindSetting("optVideoSubAutoPause", "videoSubAutoPause");
+bindSetting("optVideoSubHighlightVocab", "videoSubHighlightVocab");
+
+document.querySelectorAll("#subLayoutSeg [data-sublayout]").forEach((b) => {
+  b.addEventListener("click", async () => {
+    const layout = b.dataset.sublayout;
+    await F.setConfig({ videoSubLayout: layout });
+    document.querySelectorAll("#subLayoutSeg [data-sublayout]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.sublayout === layout);
+    });
+    flashSaved();
+  });
+});
+
+document.querySelectorAll("#subSizeSeg [data-subsize]").forEach((b) => {
+  b.addEventListener("click", async () => {
+    const size = b.dataset.subsize;
+    await F.setConfig({ videoSubSize: size });
+    document.querySelectorAll("#subSizeSeg [data-subsize]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.subsize === size);
+    });
+    flashSaved();
+  });
+});
 
 $("rescheduleBtn").addEventListener("click", async () => {
   const cfg = await F.getConfig();
