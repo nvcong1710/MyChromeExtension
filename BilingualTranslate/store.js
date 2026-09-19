@@ -35,6 +35,12 @@
     highlightSaved: false, // underline words you've saved when you meet them again
     inlineLearn: false, // "sprinkle": swap a few saved words for their translation
     revealMode: false, // hide full-page translations until you hover the original
+    // ── Video bilingual subtitles ──
+    videoSubEnabled: true, // auto-detect video subtitles and show bilingual overlay
+    videoSubLayout: "bilingual", // bilingual | transOnly | origOnly
+    videoSubSize: "md", // sm | md | lg | xl
+    videoSubAutoPause: false, // auto-pause video when hovering subtitle (study mode)
+    videoSubHighlightVocab: true, // highlight saved vocabulary in subtitles
   };
 
   const now = () => Date.now();

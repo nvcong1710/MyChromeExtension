@@ -40,11 +40,14 @@
       "js": [
         "store.js",
         "content.js",
+        "subtitles.js",
         "mascot.js"
       ],
       "css": [
-        "content.css"
+        "content.css",
+        "subtitles.css"
       ],
+      "all_frames": true,
       "run_at": "document_idle"
     }
   ],

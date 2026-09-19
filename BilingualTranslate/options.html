@@ -21,6 +21,7 @@
       <nav id="nav" class="w-56 shrink-0 border-r border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
         <button data-tab="dashboard" class="nav-btn">📊 Dashboard</button>
         <button data-tab="general" class="nav-btn">⚙️ General</button>
+        <button data-tab="videosub" class="nav-btn">🎬 Video Subtitles</button>
         <button data-tab="mascot" class="nav-btn">🐣 Mascot</button>
         <button data-tab="learning" class="nav-btn">🔔 Reminders &amp; Tests</button>
         <button data-tab="vocab" class="nav-btn">📚 Vocabulary</button>
@@ -160,6 +161,83 @@
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Drag her anywhere; click her for quick actions. Turn off to hide everywhere.</p>
             <div id="mascotPreview" class="mt-4 flex flex-wrap gap-4"></div>
           </section>
+        </section>
+
+        <!-- Video Subtitles -->
+        <section class="tab-panel hidden flex flex-col gap-6" data-panel="videosub">
+          <h1 class="text-xl font-bold">Video Bilingual Subtitles</h1>
+
+          <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+            <section class="card">
+              <h2 class="mb-1 text-[15px] font-bold">Subtitle Display Settings</h2>
+              <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">Control bilingual subtitles on film streaming &amp; LMS educational videos.</p>
+
+              <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <span class="font-medium text-sm">Enable Video Subtitles</span>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">Automatically detect captions on HTML5 players, YouTube, Coursera, Udemy, etc.</div>
+                </div>
+                <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+                  <input type="checkbox" id="optVideoSubEnabled" class="peer sr-only" />
+                  <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 dark:bg-slate-600"></div>
+                  <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
+                </label>
+              </div>
+
+              <div class="py-3 border-b border-slate-100 dark:border-slate-800">
+                <span class="label">Default Display Mode</span>
+                <div id="subLayoutSeg" class="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-600 mt-1">
+                  <button data-sublayout="bilingual" class="theme-opt">Bilingual (Both)</button>
+                  <button data-sublayout="transOnly" class="theme-opt">Target only</button>
+                  <button data-sublayout="origOnly" class="theme-opt">Source only</button>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Bilingual displays original subtitle on top and translated subtitle below.</p>
+              </div>
+
+              <div class="py-3 border-b border-slate-100 dark:border-slate-800">
+                <span class="label">Subtitle Size</span>
+                <div id="subSizeSeg" class="inline-flex rounded-xl border border-slate-200 p-1 dark:border-slate-600 mt-1">
+                  <button data-subsize="sm" class="theme-opt">Small</button>
+                  <button data-subsize="md" class="theme-opt">Medium</button>
+                  <button data-subsize="lg" class="theme-opt">Large</button>
+                  <button data-subsize="xl" class="theme-opt">X-Large</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2 class="mb-1 text-[15px] font-bold">Learning &amp; Study Mode</h2>
+              <p class="mb-4 text-xs text-slate-500 dark:text-slate-400">Connect video watching with your Vimi spaced repetition vocabulary.</p>
+
+              <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <span class="font-medium text-sm">Study Mode (Auto-pause on hover)</span>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">Pauses video playback when hovering mouse over subtitles to read or inspect words.</div>
+                </div>
+                <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+                  <input type="checkbox" id="optVideoSubAutoPause" class="peer sr-only" />
+                  <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 dark:bg-slate-600"></div>
+                  <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
+                </label>
+              </div>
+
+              <div class="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <span class="font-medium text-sm">Highlight Saved Vocabulary</span>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">Underlines words in subtitles that you have already saved in your Vimi vocab.</div>
+                </div>
+                <label class="relative inline-flex shrink-0 cursor-pointer items-center">
+                  <input type="checkbox" id="optVideoSubHighlightVocab" class="peer sr-only" />
+                  <div class="h-6 w-11 rounded-full bg-slate-300 transition peer-checked:bg-brand-600 dark:bg-slate-600"></div>
+                  <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></div>
+                </label>
+              </div>
+
+              <div class="mt-4 rounded-xl bg-slate-100 p-3 text-xs leading-relaxed text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                💡 <b>Vocabulary integration:</b> While watching any video, click any word in the original subtitle to look up its definition and save it to your Vimi vocabulary with one click.
+              </div>
+            </section>
+          </div>
         </section>
 
         <!-- Reminders & Tests -->
