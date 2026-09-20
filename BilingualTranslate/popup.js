@@ -2,18 +2,6 @@
 // via fufuConfig / fufuHosts), plus learning stats and entry points to the
 // Review and Test pages. store.js (self.FuFu) is loaded first.
 
-const LANGS = [
-  ["en", "English"],
-  ["vi", "Vietnamese"],
-  ["ja", "Japanese"],
-  ["ko", "Korean"],
-  ["zh", "Chinese"],
-  ["fr", "French"],
-  ["de", "German"],
-  ["es", "Spanish"],
-  ["ru", "Russian"],
-];
-
 const F = self.FuFu;
 const $ = (id) => document.getElementById(id);
 const power = $("power");
@@ -27,12 +15,26 @@ let tab = null;
 let host = "";
 
 function fill(sel) {
-  for (const [code, name] of LANGS) {
+  sel.innerHTML = "";
+  const popGroup = document.createElement("optgroup");
+  popGroup.label = "Popular Languages";
+  for (const [code, name] of F.POPULAR_LANGUAGES) {
     const o = document.createElement("option");
     o.value = code;
     o.textContent = `${name} (${code})`;
-    sel.appendChild(o);
+    popGroup.appendChild(o);
   }
+  sel.appendChild(popGroup);
+
+  const allGroup = document.createElement("optgroup");
+  allGroup.label = "All Languages (A-Z)";
+  for (const [code, name] of F.LANGUAGES) {
+    const o = document.createElement("option");
+    o.value = code;
+    o.textContent = `${name} (${code})`;
+    allGroup.appendChild(o);
+  }
+  sel.appendChild(allGroup);
 }
 fill(srcSel);
 fill(tgtSel);

@@ -225,6 +225,8 @@
       this.translateDebounceTimer = null;
       this.stickyClearTimer = null;
       this.wasPausedByHover = false;
+      this.badgeHasDragged = false;
+      this.boundResize = null;
 
       this.initUI();
       this.attachEvents();
@@ -281,7 +283,7 @@
         <span>Vimi</span>
         <span class="vimi-sub-badge-dot"></span>
       `;
-      this.badge.title = "Vimi Bilingual Video Subtitles";
+      this.badge.title = "Vimi Bilingual Video Subtitles (Drag to move, double-click to reset)";
 
       // 3. Settings Menu
       this.menu = document.createElement("div");
@@ -298,6 +300,7 @@
       this.mountToContainer();
       this.setupDraggable();
       this.setupHoverPause();
+      this.loadSavedPositions();
     }
 
     mountToContainer() {
@@ -306,6 +309,7 @@
       if (!target.contains(this.badge)) target.appendChild(this.badge);
       if (!target.contains(this.menu)) target.appendChild(this.menu);
       if (!target.contains(this.fileInput)) target.appendChild(this.fileInput);
+      this.loadSavedPositions();
     }
 
     renderMenu() {
@@ -358,6 +362,9 @@
             ${cfg.videoSubAutoPause ? "ON" : "OFF"}
           </button>
         </div>
+        <button class="vimi-sub-btn-secondary" id="vimiResetPositions">
+          ↺ Reset Positions (Default)
+        </button>
         <button class="vimi-sub-btn-secondary" id="vimiLoadSubFile">
           📁 Load .srt / .vtt file
         </button>
@@ -407,6 +414,12 @@
           const idx = parseInt(val, 10);
           this.selectTrackByIndex(idx);
         }
+      });
+
+      const resetBtn = this.menu.querySelector("#vimiResetPositions");
+      resetBtn?.addEventListener("click", () => {
+        this.resetPositions();
+        this.showToast("Subtitles & CC badge reset to default positions");
       });
 
       const loadFileBtn = this.menu.querySelector("#vimiLoadSubFile");
@@ -478,51 +491,283 @@
       }
     }
 
+    positionMenu() {
+      if (!this.menu || this.menu.classList.contains("vimi-menu-hidden")) return;
+      const target = document.fullscreenElement || this.container;
+      const parentRect = target.getBoundingClientRect();
+      const badgeRect = this.badge.getBoundingClientRect();
+      const menuWidth = 250;
+      const menuHeight = this.menu.offsetHeight || 320;
+
+      const badgeRelLeft = badgeRect.left - parentRect.left;
+      const badgeRelTop = badgeRect.top - parentRect.top;
+
+      // Horizontal: align right edge if near right border, otherwise align left edge
+      let menuLeft = badgeRelLeft;
+      if (badgeRelLeft + menuWidth > parentRect.width - 10) {
+        menuLeft = badgeRelLeft + badgeRect.width - menuWidth;
+      }
+      menuLeft = Math.max(10, Math.min(parentRect.width - menuWidth - 10, menuLeft));
+
+      // Vertical: flip upwards if badge is near the bottom edge
+      let menuTop = badgeRelTop + badgeRect.height + 8;
+      if (menuTop + menuHeight > parentRect.height - 10 && badgeRelTop - menuHeight - 8 >= 10) {
+        menuTop = badgeRelTop - menuHeight - 8;
+      }
+      menuTop = Math.max(10, Math.min(parentRect.height - menuHeight - 10, menuTop));
+
+      this.menu.style.left = `${menuLeft}px`;
+      this.menu.style.top = `${menuTop}px`;
+      this.menu.style.right = "auto";
+      this.menu.style.bottom = "auto";
+    }
+
+    resetPositions() {
+      // 1. Reset overlay to bottom-center default
+      this.overlay.style.top = "auto";
+      this.overlay.style.bottom = "50px";
+      this.overlay.style.left = "50%";
+      this.overlay.style.right = "auto";
+      this.overlay.style.transform = "translateX(-50%)";
+
+      // 2. Reset badge to top-right default
+      this.badge.style.top = "14px";
+      this.badge.style.right = "14px";
+      this.badge.style.left = "auto";
+      this.badge.style.bottom = "auto";
+      this.badge.style.transform = "none";
+
+      try {
+        chrome.storage.local.remove(["vimiSubOverlayPos", "vimiSubBadgePos"]);
+      } catch {}
+
+      this.positionMenu();
+    }
+
+    async loadSavedPositions() {
+      try {
+        const { vimiSubOverlayPos, vimiSubBadgePos } = await chrome.storage.local.get([
+          "vimiSubOverlayPos",
+          "vimiSubBadgePos",
+        ]);
+        const target = document.fullscreenElement || this.container;
+        const parentRect = target.getBoundingClientRect();
+        if (parentRect.width <= 0 || parentRect.height <= 0) return;
+
+        if (vimiSubOverlayPos && typeof vimiSubOverlayPos.x === "number" && typeof vimiSubOverlayPos.y === "number") {
+          const overlayWidth = this.overlay.offsetWidth || Math.min(parentRect.width * 0.88, 780);
+          const overlayHeight = this.overlay.offsetHeight || 50;
+          const leftPx = Math.max(8, Math.min(parentRect.width - overlayWidth - 8, (vimiSubOverlayPos.x / 100) * parentRect.width));
+          const topPx = Math.max(8, Math.min(parentRect.height - overlayHeight - 8, (vimiSubOverlayPos.y / 100) * parentRect.height));
+          this.overlay.style.bottom = "auto";
+          this.overlay.style.right = "auto";
+          this.overlay.style.transform = "none";
+          this.overlay.style.left = `${leftPx}px`;
+          this.overlay.style.top = `${topPx}px`;
+        }
+
+        if (vimiSubBadgePos && typeof vimiSubBadgePos.x === "number" && typeof vimiSubBadgePos.y === "number") {
+          const badgeWidth = this.badge.offsetWidth || 80;
+          const badgeHeight = this.badge.offsetHeight || 30;
+          const leftPx = Math.max(8, Math.min(parentRect.width - badgeWidth - 8, (vimiSubBadgePos.x / 100) * parentRect.width));
+          const topPx = Math.max(8, Math.min(parentRect.height - badgeHeight - 8, (vimiSubBadgePos.y / 100) * parentRect.height));
+          this.badge.style.right = "auto";
+          this.badge.style.bottom = "auto";
+          this.badge.style.transform = "none";
+          this.badge.style.left = `${leftPx}px`;
+          this.badge.style.top = `${topPx}px`;
+        }
+      } catch {}
+    }
+
     setupDraggable() {
-      const handle = this.overlay.querySelector(".vimi-sub-drag-handle") || this.overlay;
-      let isDragging = false;
-      let startX = 0, startY = 0;
-      let initialLeft = 0, initialTop = 0;
+      const getTarget = () => document.fullscreenElement || this.container;
 
-      const onMouseDown = (e) => {
-        if (e.target.classList.contains("vimi-sub-word")) return;
-        isDragging = true;
-        this.overlay.classList.add("vimi-sub-dragging");
+      // ── A. Subtitle Overlay Card Dragging ──────────────────────────────────
+      let overlayDragging = false;
+      let overlayStartX = 0, overlayStartY = 0;
+      let overlayInitLeft = 0, overlayInitTop = 0;
+      let overlayMoved = false;
 
-        const rect = this.overlay.getBoundingClientRect();
-        const parentRect = (document.fullscreenElement || this.container).getBoundingClientRect();
+      const onOverlayPointerDown = (e) => {
+        // Do not drag if clicking an interactive vocabulary word
+        if (e.target.closest(".vimi-sub-word")) return;
+        if (e.button && e.button !== 0) return; // only left click
 
-        startX = e.clientX;
-        startY = e.clientY;
-        initialLeft = rect.left - parentRect.left;
-        initialTop = rect.top - parentRect.top;
+        const pt = e.touches ? e.touches[0] : e;
+        const target = getTarget();
+        const parentRect = target.getBoundingClientRect();
+        const overlayRect = this.overlay.getBoundingClientRect();
 
-        this.overlay.style.bottom = "auto";
-        this.overlay.style.transform = "none";
-        this.overlay.style.left = `${initialLeft}px`;
-        this.overlay.style.top = `${initialTop}px`;
+        overlayDragging = true;
+        overlayMoved = false;
+        overlayStartX = pt.clientX;
+        overlayStartY = pt.clientY;
+        overlayInitLeft = overlayRect.left - parentRect.left;
+        overlayInitTop = overlayRect.top - parentRect.top;
 
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
-        e.preventDefault();
+        const onOverlayPointerMove = (ev) => {
+          if (!overlayDragging) return;
+          const p = ev.touches ? ev.touches[0] : ev;
+          const dx = p.clientX - overlayStartX;
+          const dy = p.clientY - overlayStartY;
+
+          if (!overlayMoved && Math.hypot(dx, dy) > 4) {
+            overlayMoved = true;
+            this.overlay.classList.add("vimi-sub-dragging");
+          }
+          if (!overlayMoved) return;
+
+          const pRect = target.getBoundingClientRect();
+          const oRect = this.overlay.getBoundingClientRect();
+
+          let newLeft = overlayInitLeft + dx;
+          let newTop = overlayInitTop + dy;
+
+          newLeft = Math.max(8, Math.min(pRect.width - oRect.width - 8, newLeft));
+          newTop = Math.max(8, Math.min(pRect.height - oRect.height - 8, newTop));
+
+          this.overlay.style.bottom = "auto";
+          this.overlay.style.right = "auto";
+          this.overlay.style.transform = "none";
+          this.overlay.style.left = `${newLeft}px`;
+          this.overlay.style.top = `${newTop}px`;
+          ev.preventDefault();
+        };
+
+        const onOverlayPointerUp = () => {
+          if (!overlayDragging) return;
+          overlayDragging = false;
+          this.overlay.classList.remove("vimi-sub-dragging");
+          document.removeEventListener("mousemove", onOverlayPointerMove);
+          document.removeEventListener("mouseup", onOverlayPointerUp);
+          document.removeEventListener("touchmove", onOverlayPointerMove);
+          document.removeEventListener("touchend", onOverlayPointerUp);
+
+          if (overlayMoved) {
+            const pRect = target.getBoundingClientRect();
+            const oRect = this.overlay.getBoundingClientRect();
+            const curLeft = oRect.left - pRect.left;
+            const curTop = oRect.top - pRect.top;
+            const xPercent = (curLeft / pRect.width) * 100;
+            const yPercent = (curTop / pRect.height) * 100;
+            chrome.storage.local.set({ vimiSubOverlayPos: { x: xPercent, y: yPercent } });
+          }
+        };
+
+        document.addEventListener("mousemove", onOverlayPointerMove);
+        document.addEventListener("mouseup", onOverlayPointerUp);
+        document.addEventListener("touchmove", onOverlayPointerMove, { passive: false });
+        document.addEventListener("touchend", onOverlayPointerUp);
       };
 
-      const onMouseMove = (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        this.overlay.style.left = `${initialLeft + dx}px`;
-        this.overlay.style.top = `${initialTop + dy}px`;
+      this.overlay.addEventListener("mousedown", onOverlayPointerDown);
+      this.overlay.addEventListener("touchstart", onOverlayPointerDown, { passive: true });
+
+      // Double-click overlay resets position to bottom center
+      this.overlay.addEventListener("dblclick", (e) => {
+        if (e.target.closest(".vimi-sub-word")) return;
+        this.overlay.style.top = "auto";
+        this.overlay.style.bottom = "50px";
+        this.overlay.style.left = "50%";
+        this.overlay.style.right = "auto";
+        this.overlay.style.transform = "translateX(-50%)";
+        chrome.storage.local.remove("vimiSubOverlayPos");
+        this.showToast("Subtitles reset to bottom center");
+      });
+
+      // ── B. Control Badge Dragging ──────────────────────────────────────────
+      let badgeDragging = false;
+      let badgeStartX = 0, badgeStartY = 0;
+      let badgeInitLeft = 0, badgeInitTop = 0;
+      this.badgeHasDragged = false;
+
+      const onBadgePointerDown = (e) => {
+        if (e.button && e.button !== 0) return;
+        const pt = e.touches ? e.touches[0] : e;
+        const target = getTarget();
+        const parentRect = target.getBoundingClientRect();
+        const badgeRect = this.badge.getBoundingClientRect();
+
+        badgeDragging = true;
+        this.badgeHasDragged = false;
+        badgeStartX = pt.clientX;
+        badgeStartY = pt.clientY;
+        badgeInitLeft = badgeRect.left - parentRect.left;
+        badgeInitTop = badgeRect.top - parentRect.top;
+
+        const onBadgePointerMove = (ev) => {
+          if (!badgeDragging) return;
+          const p = ev.touches ? ev.touches[0] : ev;
+          const dx = p.clientX - badgeStartX;
+          const dy = p.clientY - badgeStartY;
+
+          if (!this.badgeHasDragged && Math.hypot(dx, dy) > 5) {
+            this.badgeHasDragged = true;
+            this.badge.classList.add("vimi-sub-badge-dragging");
+          }
+          if (!this.badgeHasDragged) return;
+
+          const pRect = target.getBoundingClientRect();
+          const bRect = this.badge.getBoundingClientRect();
+
+          let newLeft = badgeInitLeft + dx;
+          let newTop = badgeInitTop + dy;
+
+          newLeft = Math.max(8, Math.min(pRect.width - bRect.width - 8, newLeft));
+          newTop = Math.max(8, Math.min(pRect.height - bRect.height - 8, newTop));
+
+          this.badge.style.right = "auto";
+          this.badge.style.bottom = "auto";
+          this.badge.style.transform = "none";
+          this.badge.style.left = `${newLeft}px`;
+          this.badge.style.top = `${newTop}px`;
+
+          this.positionMenu();
+          ev.preventDefault();
+        };
+
+        const onBadgePointerUp = () => {
+          if (!badgeDragging) return;
+          badgeDragging = false;
+          this.badge.classList.remove("vimi-sub-badge-dragging");
+          document.removeEventListener("mousemove", onBadgePointerMove);
+          document.removeEventListener("mouseup", onBadgePointerUp);
+          document.removeEventListener("touchmove", onBadgePointerMove);
+          document.removeEventListener("touchend", onBadgePointerUp);
+
+          if (this.badgeHasDragged) {
+            const pRect = target.getBoundingClientRect();
+            const bRect = this.badge.getBoundingClientRect();
+            const curLeft = bRect.left - pRect.left;
+            const curTop = bRect.top - pRect.top;
+            const xPercent = (curLeft / pRect.width) * 100;
+            const yPercent = (curTop / pRect.height) * 100;
+            chrome.storage.local.set({ vimiSubBadgePos: { x: xPercent, y: yPercent } });
+          }
+        };
+
+        document.addEventListener("mousemove", onBadgePointerMove);
+        document.addEventListener("mouseup", onBadgePointerUp);
+        document.addEventListener("touchmove", onBadgePointerMove, { passive: false });
+        document.addEventListener("touchend", onBadgePointerUp);
       };
 
-      const onMouseUp = () => {
-        isDragging = false;
-        this.overlay.classList.remove("vimi-sub-dragging");
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      };
+      this.badge.addEventListener("mousedown", onBadgePointerDown);
+      this.badge.addEventListener("touchstart", onBadgePointerDown, { passive: true });
 
-      handle.addEventListener("mousedown", onMouseDown);
+      // Double click on badge resets to top-right corner
+      this.badge.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        this.badge.style.top = "14px";
+        this.badge.style.right = "14px";
+        this.badge.style.left = "auto";
+        this.badge.style.bottom = "auto";
+        this.badge.style.transform = "none";
+        chrome.storage.local.remove("vimiSubBadgePos");
+        this.showToast("CC badge reset to top right");
+        this.positionMenu();
+      });
     }
 
     setupHoverPause() {
@@ -547,8 +792,16 @@
       // Toggle Settings Menu
       this.badge.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (this.badgeHasDragged) {
+          this.badgeHasDragged = false;
+          return;
+        }
+        const willOpen = this.menu.classList.contains("vimi-menu-hidden");
         this.menu.classList.toggle("vimi-menu-hidden");
-        this.badge.classList.toggle("vimi-sub-badge-active", !this.menu.classList.contains("vimi-menu-hidden"));
+        this.badge.classList.toggle("vimi-sub-badge-active", willOpen);
+        if (willOpen) {
+          this.positionMenu();
+        }
       });
 
       document.addEventListener("click", (e) => {
@@ -557,6 +810,13 @@
           this.badge.classList.remove("vimi-sub-badge-active");
         }
       });
+
+      // Window resize / resolution adjustment
+      this.boundResize = () => {
+        this.loadSavedPositions();
+        this.positionMenu();
+      };
+      window.addEventListener("resize", this.boundResize);
 
       // Fullscreen change handling
       const handleFullscreen = () => {
@@ -1058,6 +1318,7 @@
       clearTimeout(this.debounceTimer);
       clearTimeout(this.translateDebounceTimer);
       this.cancelStickyClear();
+      if (this.boundResize) window.removeEventListener("resize", this.boundResize);
       if (this.domObserver) this.domObserver.disconnect();
       if (this.activeTrack) {
         this.activeTrack.removeEventListener("cuechange", this.boundCueChange);

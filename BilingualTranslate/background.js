@@ -123,9 +123,24 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     // content script unavailable — save without translation/context
   }
   const cfg = await F.getConfig();
+  let translation = (meta?.translation || "").trim();
+  if (!translation) {
+    try {
+      const src = meta?.src || cfg.src || "auto";
+      const tgt = meta?.tgt || cfg.tgt || "vi";
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(src)}&tl=${encodeURIComponent(tgt)}&dt=t&q=${encodeURIComponent(term)}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        translation = (data[0] || []).map((seg) => seg[0]).join("");
+      }
+    } catch (e) {
+      console.warn("[Vimi] Background right-click translation error:", e);
+    }
+  }
   await F.addWord({
     term,
-    translation: meta?.translation || "",
+    translation,
     context: meta?.context || "",
     src: meta?.src || cfg.src,
     tgt: meta?.tgt || cfg.tgt,
