@@ -210,37 +210,66 @@
     return a;
   }
 
+  // ── Safe storage helpers (guards against Extension context invalidated) ──
+  function isExtensionValid() {
+    return Boolean(typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id);
+  }
+
+  async function storageGet(keys, fallback = {}) {
+    if (!isExtensionValid()) return fallback;
+    try {
+      return (await chrome.storage.local.get(keys)) || fallback;
+    } catch (err) {
+      if (err && String(err.message || err).includes("Extension context invalidated")) {
+        return fallback;
+      }
+      throw err;
+    }
+  }
+
+  async function storageSet(items) {
+    if (!isExtensionValid()) return;
+    try {
+      await chrome.storage.local.set(items);
+    } catch (err) {
+      if (err && String(err.message || err).includes("Extension context invalidated")) {
+        return;
+      }
+      throw err;
+    }
+  }
+
   // ── Config ──────────────────────────────────────────────────────────
   async function getConfig() {
-    const { fufuConfig } = await chrome.storage.local.get("fufuConfig");
+    const { fufuConfig } = await storageGet("fufuConfig");
     return Object.assign({}, DEFAULT_CONFIG, fufuConfig || {});
   }
   async function setConfig(patch) {
     const next = Object.assign(await getConfig(), patch);
-    await chrome.storage.local.set({ fufuConfig: next });
+    await storageSet({ fufuConfig: next });
     return next;
   }
 
   // ── Per-site auto-translate hosts ───────────────────────────────────
   async function getHosts() {
-    const { fufuHosts } = await chrome.storage.local.get("fufuHosts");
+    const { fufuHosts } = await storageGet("fufuHosts");
     return fufuHosts && typeof fufuHosts === "object" ? fufuHosts : {};
   }
   async function setHostEnabled(host, on) {
     const hosts = await getHosts();
     if (on) hosts[host] = true;
     else delete hosts[host];
-    await chrome.storage.local.set({ fufuHosts: hosts });
+    await storageSet({ fufuHosts: hosts });
     return hosts;
   }
 
   // ── Vocabulary ──────────────────────────────────────────────────────
   async function getVocab() {
-    const { fufuVocab } = await chrome.storage.local.get("fufuVocab");
+    const { fufuVocab } = await storageGet("fufuVocab");
     return Array.isArray(fufuVocab) ? fufuVocab : [];
   }
   async function setVocab(list) {
-    await chrome.storage.local.set({ fufuVocab: list });
+    await storageSet({ fufuVocab: list });
   }
 
   async function addWord({ term, translation, src, tgt, context, url, note }) {
@@ -297,11 +326,11 @@
   // ── Flashcard decks ─────────────────────────────────────────────────
   // A deck is a named set of word ids the user groups for focused study.
   async function getDecks() {
-    const { fufuDecks } = await chrome.storage.local.get("fufuDecks");
+    const { fufuDecks } = await storageGet("fufuDecks");
     return Array.isArray(fufuDecks) ? fufuDecks : [];
   }
   async function setDecks(list) {
-    await chrome.storage.local.set({ fufuDecks: list });
+    await storageSet({ fufuDecks: list });
   }
   async function createDeck(name, wordIds) {
     const decks = await getDecks();
@@ -381,7 +410,7 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
   async function getActivity() {
-    const { fufuActivity } = await chrome.storage.local.get("fufuActivity");
+    const { fufuActivity } = await storageGet("fufuActivity");
     return fufuActivity && typeof fufuActivity === "object" ? fufuActivity : {};
   }
   async function recordActivity(kind) {
@@ -390,7 +419,7 @@
     a[k] = a[k] || { reviews: 0, added: 0 };
     if (kind === "review") a[k].reviews++;
     else if (kind === "added") a[k].added++;
-    await chrome.storage.local.set({ fufuActivity: a });
+    await storageSet({ fufuActivity: a });
   }
   function activeOn(a, key) {
     const e = a[key];
@@ -468,7 +497,7 @@
 
   // ── Test generation / lifecycle ─────────────────────────────────────
   async function getTest() {
-    const { fufuTest } = await chrome.storage.local.get("fufuTest");
+    const { fufuTest } = await storageGet("fufuTest");
     return fufuTest || null;
   }
   async function getPendingTest() {
@@ -476,7 +505,7 @@
     return t && t.status === "pending" ? t : null;
   }
   async function setTest(t) {
-    await chrome.storage.local.set({ fufuTest: t });
+    await storageSet({ fufuTest: t });
   }
 
   // Build a fill-in-the-blank prompt from a word's saved context sentence by
@@ -582,7 +611,7 @@
       lastTestAt: now(),
       nextTestAt: computeNextTest(now(), cfg),
     });
-    await chrome.storage.local.set({ fufuCelebrate: now() }); // mascot cheer
+    await storageSet({ fufuCelebrate: now() }); // mascot cheer
     return { correct, total: t.questions.length };
   }
 
@@ -594,7 +623,7 @@
     "fufuConfig", "fufuVocab", "fufuHosts", "fufuDecks", "fufuTest", "fufuActivity",
   ];
   async function exportAll() {
-    const data = await chrome.storage.local.get(BACKUP_KEYS);
+    const data = await storageGet(BACKUP_KEYS);
     return { app: "vimi-bilingual", schema: 2, exportedAt: now(), data };
   }
   // Replace local data with a backup's contents. Only keys present in the
@@ -605,7 +634,7 @@
     const patch = {};
     for (const k of BACKUP_KEYS) if (k in data) patch[k] = data[k];
     if (!Object.keys(patch).length) throw new Error("Backup is empty");
-    await chrome.storage.local.set(patch);
+    await storageSet(patch);
     return Object.keys(patch).length;
   }
 

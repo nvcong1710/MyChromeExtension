@@ -1114,16 +1114,20 @@
     } catch {}
   }
 
-  F.getConfig().then(refreshConfig);
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local") {
-      if (changes.fufuConfig) {
-        refreshConfig();
-      } else if (changes.fufuVocab) {
-        refreshSavedVocabMarks();
+  if (F && F.getConfig) {
+    F.getConfig().then(refreshConfig).catch(() => {});
+  }
+  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "local") {
+        if (changes.fufuConfig) {
+          refreshConfig().catch(() => {});
+        } else if (changes.fufuVocab) {
+          refreshSavedVocabMarks().catch(() => {});
+        }
       }
-    }
-  });
+    });
+  }
 
   // ── Translation Pipeline ──────────────────────────────────────────────────
   let onDeviceTranslator = null;
@@ -1160,6 +1164,7 @@
     } catch {
       // Fallback to background service worker translation
       try {
+        if (!chrome?.runtime?.id) throw new Error("Extension context invalidated");
         const res = await chrome.runtime.sendMessage({
           type: "FUFU_TRANSLATE",
           text,
