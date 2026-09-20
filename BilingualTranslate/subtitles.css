@@ -24,6 +24,7 @@
   min-height: 28px;
   transition: opacity 0.22s ease;
   cursor: grab;
+  touch-action: none;
 }
 
 .vimi-sub-overlay.vimi-sub-hidden {
@@ -37,6 +38,7 @@
   user-select: none !important;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
   background: rgba(8, 8, 8, 0.96);
+  transition: none !important;
 }
 
 /* Drag handle on top edge — subtle hover-only handle so subtitles stay clean like YouTube */
@@ -50,6 +52,7 @@
   background: rgba(255, 255, 255, 0.3);
   border-radius: 9999px;
   cursor: grab;
+  touch-action: none;
   opacity: 0;
   transition: opacity 0.15s ease, background 0.15s ease, height 0.15s ease;
 }
@@ -183,6 +186,7 @@
   border-radius: 9999px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
   cursor: grab;
+  touch-action: none;
   opacity: 0;
   transition: opacity 0.22s ease, transform 0.18s ease, background 0.15s ease;
   user-select: none;
@@ -207,6 +211,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
   background: rgba(30, 41, 59, 0.98) !important;
   border-color: rgba(56, 189, 248, 0.6) !important;
+  transition: none !important;
 }
 
 .vimi-sub-badge-icon {

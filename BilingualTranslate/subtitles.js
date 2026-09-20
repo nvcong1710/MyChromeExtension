@@ -226,6 +226,9 @@
       this.stickyClearTimer = null;
       this.wasPausedByHover = false;
       this.badgeHasDragged = false;
+      this.badgeJustDragged = false;
+      this.cleanupBadgeDrag = null;
+      this.cleanupOverlayDrag = null;
       this.boundResize = null;
 
       this.initUI();
@@ -584,89 +587,157 @@
       const getTarget = () => document.fullscreenElement || this.container;
 
       // ── A. Subtitle Overlay Card Dragging ──────────────────────────────────
-      let overlayDragging = false;
+      let overlayActivePointerId = null;
       let overlayStartX = 0, overlayStartY = 0;
       let overlayInitLeft = 0, overlayInitTop = 0;
       let overlayMoved = false;
 
-      const onOverlayPointerDown = (e) => {
-        // Do not drag if clicking an interactive vocabulary word
-        if (e.target.closest(".vimi-sub-word")) return;
-        if (e.button && e.button !== 0) return; // only left click
+      const endOverlayDrag = (cancelled = false) => {
+        if (overlayActivePointerId === null) return;
+        const pid = overlayActivePointerId;
+        overlayActivePointerId = null;
 
-        const pt = e.touches ? e.touches[0] : e;
-        const target = getTarget();
-        const parentRect = target.getBoundingClientRect();
-        const overlayRect = this.overlay.getBoundingClientRect();
-
-        overlayDragging = true;
-        overlayMoved = false;
-        overlayStartX = pt.clientX;
-        overlayStartY = pt.clientY;
-        overlayInitLeft = overlayRect.left - parentRect.left;
-        overlayInitTop = overlayRect.top - parentRect.top;
-
-        const onOverlayPointerMove = (ev) => {
-          if (!overlayDragging) return;
-          const p = ev.touches ? ev.touches[0] : ev;
-          const dx = p.clientX - overlayStartX;
-          const dy = p.clientY - overlayStartY;
-
-          if (!overlayMoved && Math.hypot(dx, dy) > 4) {
-            overlayMoved = true;
-            this.overlay.classList.add("vimi-sub-dragging");
+        try {
+          if (this.overlay.hasPointerCapture && this.overlay.hasPointerCapture(pid)) {
+            this.overlay.releasePointerCapture(pid);
           }
-          if (!overlayMoved) return;
+        } catch {}
 
-          const pRect = target.getBoundingClientRect();
-          const oRect = this.overlay.getBoundingClientRect();
+        window.removeEventListener("pointermove", onOverlayPointerMove, true);
+        window.removeEventListener("pointerup", onOverlayPointerUp, true);
+        window.removeEventListener("mouseup", onOverlayPointerUp, true);
+        window.removeEventListener("pointercancel", onOverlayPointerCancel, true);
+        window.removeEventListener("lostpointercapture", onOverlayPointerCancel, true);
+        window.removeEventListener("keydown", onOverlayKeyDown, true);
+        window.removeEventListener("blur", onOverlayBlur, true);
 
-          let newLeft = overlayInitLeft + dx;
-          let newTop = overlayInitTop + dy;
+        this.overlay.classList.remove("vimi-sub-dragging");
 
-          newLeft = Math.max(8, Math.min(pRect.width - oRect.width - 8, newLeft));
-          newTop = Math.max(8, Math.min(pRect.height - oRect.height - 8, newTop));
-
+        if (cancelled) {
           this.overlay.style.bottom = "auto";
           this.overlay.style.right = "auto";
           this.overlay.style.transform = "none";
-          this.overlay.style.left = `${newLeft}px`;
-          this.overlay.style.top = `${newTop}px`;
-          ev.preventDefault();
-        };
+          this.overlay.style.left = `${overlayInitLeft}px`;
+          this.overlay.style.top = `${overlayInitTop}px`;
+          overlayMoved = false;
+          return;
+        }
 
-        const onOverlayPointerUp = () => {
-          if (!overlayDragging) return;
-          overlayDragging = false;
-          this.overlay.classList.remove("vimi-sub-dragging");
-          document.removeEventListener("mousemove", onOverlayPointerMove);
-          document.removeEventListener("mouseup", onOverlayPointerUp);
-          document.removeEventListener("touchmove", onOverlayPointerMove);
-          document.removeEventListener("touchend", onOverlayPointerUp);
-
-          if (overlayMoved) {
-            const pRect = target.getBoundingClientRect();
-            const oRect = this.overlay.getBoundingClientRect();
-            const curLeft = oRect.left - pRect.left;
-            const curTop = oRect.top - pRect.top;
+        if (overlayMoved) {
+          overlayMoved = false;
+          const target = getTarget();
+          const pRect = target.getBoundingClientRect();
+          const oRect = this.overlay.getBoundingClientRect();
+          const curLeft = oRect.left - pRect.left;
+          const curTop = oRect.top - pRect.top;
+          if (pRect.width > 0 && pRect.height > 0) {
             const xPercent = (curLeft / pRect.width) * 100;
             const yPercent = (curTop / pRect.height) * 100;
             chrome.storage.local.set({ vimiSubOverlayPos: { x: xPercent, y: yPercent } });
           }
-        };
-
-        document.addEventListener("mousemove", onOverlayPointerMove);
-        document.addEventListener("mouseup", onOverlayPointerUp);
-        document.addEventListener("touchmove", onOverlayPointerMove, { passive: false });
-        document.addEventListener("touchend", onOverlayPointerUp);
+        }
       };
 
-      this.overlay.addEventListener("mousedown", onOverlayPointerDown);
-      this.overlay.addEventListener("touchstart", onOverlayPointerDown, { passive: true });
+      const onOverlayPointerMove = (ev) => {
+        if (overlayActivePointerId === null || ev.pointerId !== overlayActivePointerId) return;
+        const dx = ev.clientX - overlayStartX;
+        const dy = ev.clientY - overlayStartY;
+
+        if (!overlayMoved && Math.hypot(dx, dy) > 4) {
+          overlayMoved = true;
+          this.overlay.classList.add("vimi-sub-dragging");
+        }
+        if (!overlayMoved) return;
+
+        const target = getTarget();
+        const pRect = target.getBoundingClientRect();
+        const oRect = this.overlay.getBoundingClientRect();
+
+        let newLeft = overlayInitLeft + dx;
+        let newTop = overlayInitTop + dy;
+
+        newLeft = Math.max(8, Math.min(pRect.width - oRect.width - 8, newLeft));
+        newTop = Math.max(8, Math.min(pRect.height - oRect.height - 8, newTop));
+
+        this.overlay.style.bottom = "auto";
+        this.overlay.style.right = "auto";
+        this.overlay.style.transform = "none";
+        this.overlay.style.left = `${newLeft}px`;
+        this.overlay.style.top = `${newTop}px`;
+
+        ev.preventDefault();
+        ev.stopPropagation();
+      };
+
+      const onOverlayPointerUp = (ev) => {
+        if (overlayActivePointerId !== null && (ev.pointerId === overlayActivePointerId || !ev.pointerId)) {
+          endOverlayDrag(false);
+        }
+      };
+
+      const onOverlayPointerCancel = (ev) => {
+        if (overlayActivePointerId !== null && (!ev || ev.pointerId === overlayActivePointerId || !ev.pointerId)) {
+          endOverlayDrag(true);
+        }
+      };
+
+      const onOverlayBlur = () => {
+        if (overlayActivePointerId !== null) {
+          endOverlayDrag(true);
+        }
+      };
+
+      const onOverlayKeyDown = (ev) => {
+        if (overlayActivePointerId !== null && ev.key === "Escape") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          endOverlayDrag(true);
+        }
+      };
+
+      const onOverlayPointerDown = (e) => {
+        // Do not drag if clicking an interactive vocabulary word or button
+        if (e.target.closest(".vimi-sub-word, .vimi-menu-btn, button, a, input, select")) return;
+        if (e.pointerType === "mouse" && e.button !== 0) return; // only left click
+        if (e.isPrimary === false) return;
+
+        e.stopPropagation();
+
+        if (overlayActivePointerId !== null) {
+          endOverlayDrag(true);
+        }
+
+        const target = getTarget();
+        const parentRect = target.getBoundingClientRect();
+        const overlayRect = this.overlay.getBoundingClientRect();
+
+        overlayActivePointerId = e.pointerId;
+        overlayMoved = false;
+        overlayStartX = e.clientX;
+        overlayStartY = e.clientY;
+        overlayInitLeft = overlayRect.left - parentRect.left;
+        overlayInitTop = overlayRect.top - parentRect.top;
+
+        try {
+          this.overlay.setPointerCapture(e.pointerId);
+        } catch {}
+
+        window.addEventListener("pointermove", onOverlayPointerMove, { capture: true, passive: false });
+        window.addEventListener("pointerup", onOverlayPointerUp, { capture: true });
+        window.addEventListener("mouseup", onOverlayPointerUp, { capture: true });
+        window.addEventListener("pointercancel", onOverlayPointerCancel, { capture: true });
+        window.addEventListener("lostpointercapture", onOverlayPointerCancel, { capture: true });
+        window.addEventListener("keydown", onOverlayKeyDown, { capture: true });
+        window.addEventListener("blur", onOverlayBlur, { capture: true });
+      };
+
+      this.cleanupOverlayDrag = endOverlayDrag;
+      this.overlay.addEventListener("pointerdown", onOverlayPointerDown);
 
       // Double-click overlay resets position to bottom center
       this.overlay.addEventListener("dblclick", (e) => {
         if (e.target.closest(".vimi-sub-word")) return;
+        e.stopPropagation();
         this.overlay.style.top = "auto";
         this.overlay.style.bottom = "50px";
         this.overlay.style.left = "50%";
@@ -677,84 +748,159 @@
       });
 
       // ── B. Control Badge Dragging ──────────────────────────────────────────
-      let badgeDragging = false;
+      let badgeActivePointerId = null;
       let badgeStartX = 0, badgeStartY = 0;
       let badgeInitLeft = 0, badgeInitTop = 0;
       this.badgeHasDragged = false;
+      this.badgeJustDragged = false;
 
-      const onBadgePointerDown = (e) => {
-        if (e.button && e.button !== 0) return;
-        const pt = e.touches ? e.touches[0] : e;
-        const target = getTarget();
-        const parentRect = target.getBoundingClientRect();
-        const badgeRect = this.badge.getBoundingClientRect();
+      const endBadgeDrag = (cancelled = false) => {
+        if (badgeActivePointerId === null) return;
+        const pid = badgeActivePointerId;
+        badgeActivePointerId = null;
 
-        badgeDragging = true;
-        this.badgeHasDragged = false;
-        badgeStartX = pt.clientX;
-        badgeStartY = pt.clientY;
-        badgeInitLeft = badgeRect.left - parentRect.left;
-        badgeInitTop = badgeRect.top - parentRect.top;
-
-        const onBadgePointerMove = (ev) => {
-          if (!badgeDragging) return;
-          const p = ev.touches ? ev.touches[0] : ev;
-          const dx = p.clientX - badgeStartX;
-          const dy = p.clientY - badgeStartY;
-
-          if (!this.badgeHasDragged && Math.hypot(dx, dy) > 5) {
-            this.badgeHasDragged = true;
-            this.badge.classList.add("vimi-sub-badge-dragging");
+        try {
+          if (this.badge.hasPointerCapture && this.badge.hasPointerCapture(pid)) {
+            this.badge.releasePointerCapture(pid);
           }
-          if (!this.badgeHasDragged) return;
+        } catch {}
 
-          const pRect = target.getBoundingClientRect();
-          const bRect = this.badge.getBoundingClientRect();
+        window.removeEventListener("pointermove", onBadgePointerMove, true);
+        window.removeEventListener("pointerup", onBadgePointerUp, true);
+        window.removeEventListener("mouseup", onBadgePointerUp, true);
+        window.removeEventListener("pointercancel", onBadgePointerCancel, true);
+        window.removeEventListener("lostpointercapture", onBadgePointerCancel, true);
+        window.removeEventListener("keydown", onBadgeKeyDown, true);
+        window.removeEventListener("blur", onBadgeBlur, true);
 
-          let newLeft = badgeInitLeft + dx;
-          let newTop = badgeInitTop + dy;
+        this.badge.classList.remove("vimi-sub-badge-dragging");
 
-          newLeft = Math.max(8, Math.min(pRect.width - bRect.width - 8, newLeft));
-          newTop = Math.max(8, Math.min(pRect.height - bRect.height - 8, newTop));
-
+        if (cancelled) {
           this.badge.style.right = "auto";
           this.badge.style.bottom = "auto";
           this.badge.style.transform = "none";
-          this.badge.style.left = `${newLeft}px`;
-          this.badge.style.top = `${newTop}px`;
-
+          this.badge.style.left = `${badgeInitLeft}px`;
+          this.badge.style.top = `${badgeInitTop}px`;
+          this.badgeHasDragged = false;
           this.positionMenu();
-          ev.preventDefault();
-        };
+          return;
+        }
 
-        const onBadgePointerUp = () => {
-          if (!badgeDragging) return;
-          badgeDragging = false;
-          this.badge.classList.remove("vimi-sub-badge-dragging");
-          document.removeEventListener("mousemove", onBadgePointerMove);
-          document.removeEventListener("mouseup", onBadgePointerUp);
-          document.removeEventListener("touchmove", onBadgePointerMove);
-          document.removeEventListener("touchend", onBadgePointerUp);
+        if (this.badgeHasDragged) {
+          this.badgeJustDragged = true;
+          setTimeout(() => {
+            this.badgeJustDragged = false;
+            this.badgeHasDragged = false;
+          }, 200);
 
-          if (this.badgeHasDragged) {
-            const pRect = target.getBoundingClientRect();
-            const bRect = this.badge.getBoundingClientRect();
-            const curLeft = bRect.left - pRect.left;
-            const curTop = bRect.top - pRect.top;
+          const target = getTarget();
+          const pRect = target.getBoundingClientRect();
+          const bRect = this.badge.getBoundingClientRect();
+          const curLeft = bRect.left - pRect.left;
+          const curTop = bRect.top - pRect.top;
+          if (pRect.width > 0 && pRect.height > 0) {
             const xPercent = (curLeft / pRect.width) * 100;
             const yPercent = (curTop / pRect.height) * 100;
             chrome.storage.local.set({ vimiSubBadgePos: { x: xPercent, y: yPercent } });
           }
-        };
-
-        document.addEventListener("mousemove", onBadgePointerMove);
-        document.addEventListener("mouseup", onBadgePointerUp);
-        document.addEventListener("touchmove", onBadgePointerMove, { passive: false });
-        document.addEventListener("touchend", onBadgePointerUp);
+          this.positionMenu();
+        }
       };
 
-      this.badge.addEventListener("mousedown", onBadgePointerDown);
-      this.badge.addEventListener("touchstart", onBadgePointerDown, { passive: true });
+      const onBadgePointerMove = (ev) => {
+        if (badgeActivePointerId === null || ev.pointerId !== badgeActivePointerId) return;
+        const dx = ev.clientX - badgeStartX;
+        const dy = ev.clientY - badgeStartY;
+
+        if (!this.badgeHasDragged && Math.hypot(dx, dy) > 5) {
+          this.badgeHasDragged = true;
+          this.badge.classList.add("vimi-sub-badge-dragging");
+        }
+        if (!this.badgeHasDragged) return;
+
+        const target = getTarget();
+        const pRect = target.getBoundingClientRect();
+        const bRect = this.badge.getBoundingClientRect();
+
+        let newLeft = badgeInitLeft + dx;
+        let newTop = badgeInitTop + dy;
+
+        newLeft = Math.max(8, Math.min(pRect.width - bRect.width - 8, newLeft));
+        newTop = Math.max(8, Math.min(pRect.height - bRect.height - 8, newTop));
+
+        this.badge.style.right = "auto";
+        this.badge.style.bottom = "auto";
+        this.badge.style.transform = "none";
+        this.badge.style.left = `${newLeft}px`;
+        this.badge.style.top = `${newTop}px`;
+
+        this.positionMenu();
+        ev.preventDefault();
+        ev.stopPropagation();
+      };
+
+      const onBadgePointerUp = (ev) => {
+        if (badgeActivePointerId !== null && (ev.pointerId === badgeActivePointerId || !ev.pointerId)) {
+          endBadgeDrag(false);
+        }
+      };
+
+      const onBadgePointerCancel = (ev) => {
+        if (badgeActivePointerId !== null && (!ev || ev.pointerId === badgeActivePointerId || !ev.pointerId)) {
+          endBadgeDrag(true);
+        }
+      };
+
+      const onBadgeBlur = () => {
+        if (badgeActivePointerId !== null) {
+          endBadgeDrag(true);
+        }
+      };
+
+      const onBadgeKeyDown = (ev) => {
+        if (badgeActivePointerId !== null && ev.key === "Escape") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          endBadgeDrag(true);
+        }
+      };
+
+      const onBadgePointerDown = (e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        if (e.isPrimary === false) return;
+
+        e.stopPropagation();
+
+        if (badgeActivePointerId !== null) {
+          endBadgeDrag(true);
+        }
+
+        const target = getTarget();
+        const parentRect = target.getBoundingClientRect();
+        const badgeRect = this.badge.getBoundingClientRect();
+
+        badgeActivePointerId = e.pointerId;
+        this.badgeHasDragged = false;
+        badgeStartX = e.clientX;
+        badgeStartY = e.clientY;
+        badgeInitLeft = badgeRect.left - parentRect.left;
+        badgeInitTop = badgeRect.top - parentRect.top;
+
+        try {
+          this.badge.setPointerCapture(e.pointerId);
+        } catch {}
+
+        window.addEventListener("pointermove", onBadgePointerMove, { capture: true, passive: false });
+        window.addEventListener("pointerup", onBadgePointerUp, { capture: true });
+        window.addEventListener("mouseup", onBadgePointerUp, { capture: true });
+        window.addEventListener("pointercancel", onBadgePointerCancel, { capture: true });
+        window.addEventListener("lostpointercapture", onBadgePointerCancel, { capture: true });
+        window.addEventListener("keydown", onBadgeKeyDown, { capture: true });
+        window.addEventListener("blur", onBadgeBlur, { capture: true });
+      };
+
+      this.cleanupBadgeDrag = endBadgeDrag;
+      this.badge.addEventListener("pointerdown", onBadgePointerDown);
 
       // Double click on badge resets to top-right corner
       this.badge.addEventListener("dblclick", (e) => {
@@ -792,7 +938,8 @@
       // Toggle Settings Menu
       this.badge.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (this.badgeHasDragged) {
+        if (this.badgeJustDragged || this.badgeHasDragged) {
+          this.badgeJustDragged = false;
           this.badgeHasDragged = false;
           return;
         }
@@ -1318,6 +1465,8 @@
       clearTimeout(this.debounceTimer);
       clearTimeout(this.translateDebounceTimer);
       this.cancelStickyClear();
+      if (this.cleanupBadgeDrag) this.cleanupBadgeDrag(true);
+      if (this.cleanupOverlayDrag) this.cleanupOverlayDrag(true);
       if (this.boundResize) window.removeEventListener("resize", this.boundResize);
       if (this.domObserver) this.domObserver.disconnect();
       if (this.activeTrack) {
