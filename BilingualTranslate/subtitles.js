@@ -22,6 +22,99 @@
   const F = self.FuFu;
   const HAS_LETTER = /\p{L}/u;
 
+  // Verb inflection lemmas for matching phrasal verbs across tenses
+  const VERB_LEMMAS = {
+    looked: "look", looking: "look", looks: "look",
+    gave: "give", gives: "give", giving: "give", given: "give",
+    took: "take", takes: "take", taking: "take", taken: "take",
+    turned: "turn", turns: "turn", turning: "turn",
+    came: "come", comes: "come", coming: "come",
+    got: "get", gets: "get", getting: "get", gotten: "get",
+    ran: "run", runs: "run", running: "run",
+    carried: "carry", carries: "carry", carrying: "carry",
+    broke: "break", breaks: "break", breaking: "break", broken: "break",
+    sets: "set", setting: "set",
+    found: "find", finds: "find", finding: "find",
+    made: "make", makes: "make", making: "make",
+    held: "hold", holds: "hold", holding: "hold",
+    brought: "bring", brings: "bring", bringing: "bring",
+    pointed: "point", points: "point", pointing: "point",
+    worked: "work", works: "work", working: "work",
+    puts: "put", putting: "put",
+    picked: "pick", picks: "pick", picking: "pick",
+    cuts: "cut", cutting: "cut",
+    dropped: "drop", drops: "drop", dropping: "drop",
+    figured: "figure", figures: "figure", figuring: "figure",
+    hung: "hang", hangs: "hang", hanging: "hang",
+    showed: "show", shows: "show", showing: "show", shown: "show",
+    stood: "stand", stands: "stand", standing: "stand",
+    ended: "end", ends: "end", ending: "end",
+    woke: "wake", wakes: "wake", waking: "wake", woken: "wake",
+    switched: "switch", switches: "switch", switching: "switch",
+    dealt: "deal", deals: "deal", dealing: "deal",
+    fell: "fall", falls: "fall", falling: "fall", fallen: "fall",
+    grew: "grow", grows: "grow", growing: "grow", grown: "grow",
+    called: "call", calls: "call", calling: "call",
+    cleaned: "clean", cleans: "clean", cleaning: "clean",
+    cheered: "cheer", cheers: "cheer", cheering: "cheer",
+    checked: "check", checks: "check", checking: "check",
+    handed: "hand", hands: "hand", handing: "hand",
+    kept: "keep", keeps: "keep", keeping: "keep",
+    passed: "pass", passes: "pass", passing: "pass",
+    paid: "pay", pays: "pay", paying: "pay",
+    pulled: "pull", pulls: "pull", pulling: "pull",
+    shuts: "shut", shutting: "shut",
+    slowed: "slow", slows: "slow", slowing: "slow",
+    sped: "speed", speeds: "speed", speeding: "speed",
+    stayed: "stay", stays: "stay", staying: "stay",
+    threw: "throw", throws: "throw", throwing: "throw", thrown: "throw",
+    tried: "try", tries: "try", trying: "try",
+    warmed: "warm", warms: "warm", warming: "warm",
+    watched: "watch", watches: "watch", watching: "watch",
+    wrapped: "wrap", wraps: "wrap", wrapping: "wrap",
+    wrote: "write", writes: "write", writing: "write", written: "write"
+  };
+
+  // High-frequency English phrasal verbs for instant multi-word recognition
+  const COMMON_PHRASAL_VERBS = new Set([
+    // 3-word phrasal verbs
+    "look forward to", "come up with", "get along with", "run out of", "put up with",
+    "cut down on", "catch up with", "keep up with", "get rid of", "look down on",
+    "look up to", "make up for", "stand up for", "take care of", "run away from",
+    "get away with", "check up on", "come down with", "drop out of", "feel up to",
+    "go through with", "live up to", "look out for", "read up on", "turn out to",
+    // 2-word phrasal verbs
+    "ask out", "back up", "blow up", "break down", "break in", "break out", "break up",
+    "bring about", "bring up", "bring back", "call back", "call off", "call on",
+    "calm down", "carry on", "carry out", "catch up", "check in", "check out",
+    "cheer up", "clean up", "clear up", "close down", "come across", "come along",
+    "come back", "come from", "come in", "come on", "come out", "come over",
+    "count on", "cross out", "cut off", "cut out", "deal with", "drop by", "drop off",
+    "drop out", "eat out", "end up", "fall apart", "fall behind", "fall down",
+    "fall out", "figure out", "fill in", "fill out", "fill up", "find out",
+    "get across", "get ahead", "get along", "get around", "get away", "get back",
+    "get by", "get in", "get off", "get on", "get out", "get over", "get through",
+    "get together", "get up", "give away", "give back", "give in", "give out",
+    "give up", "go ahead", "go away", "go back", "go on", "go out", "go over",
+    "go through", "grow up", "hand in", "hand out", "hand over", "hang on",
+    "hang out", "hang up", "hold on", "hold back", "hold up", "keep on", "keep up",
+    "lay off", "let down", "let in", "let out", "look after", "look back",
+    "look down", "look for", "look forward", "look in", "look into", "look out",
+    "look over", "look through", "look up", "make out", "make sure", "make up",
+    "pass away", "pass out", "pay back", "pay off", "pick out", "pick up",
+    "point out", "pull over", "put away", "put down", "put off", "put on",
+    "put out", "put up", "rely on", "run away", "run into", "run out", "run over",
+    "set off", "set out", "set up", "show off", "show up", "shut down", "shut up",
+    "sign in", "sign out", "sign up", "slow down", "speed up", "stand by",
+    "stand for", "stand out", "stand up", "stay up", "stick to", "switch off",
+    "switch on", "take after", "take apart", "take away", "take back", "take off",
+    "take on", "take out", "take over", "take up", "tear down", "tear up",
+    "think over", "throw away", "throw out", "throw up", "try on", "try out",
+    "turn around", "turn away", "turn back", "turn down", "turn in", "turn into",
+    "turn off", "turn on", "turn out", "turn over", "turn up", "wake up",
+    "warm up", "watch out", "work out", "wrap up", "write down"
+  ]);
+
   // Clean WebVTT and HTML tags from subtitle cues
   function cleanCueText(raw) {
     if (!raw) return "";
@@ -229,6 +322,9 @@
       this.badgeJustDragged = false;
       this.cleanupBadgeDrag = null;
       this.cleanupOverlayDrag = null;
+      this.justHighlightedPhrase = false;
+      this.lastClickedWordSpan = null;
+      this.cleanupPhraseHighlight = null;
       this.boundResize = null;
 
       this.initUI();
@@ -303,6 +399,7 @@
       this.mountToContainer();
       this.setupDraggable();
       this.setupHoverPause();
+      this.setupPhraseHighlight();
       this.loadSavedPositions();
     }
 
@@ -696,8 +793,8 @@
       };
 
       const onOverlayPointerDown = (e) => {
-        // Do not drag if clicking an interactive vocabulary word or button
-        if (e.target.closest(".vimi-sub-word, .vimi-menu-btn, button, a, input, select")) return;
+        // Do not drag if clicking inside subtitle text content, vocabulary words, or buttons
+        if (e.target.closest(".vimi-sub-content, .vimi-sub-word, .vimi-sub-phrase, .vimi-menu-btn, button, a, input, select")) return;
         if (e.pointerType === "mouse" && e.button !== 0) return; // only left click
         if (e.isPrimary === false) return;
 
@@ -932,6 +1029,69 @@
           this.video.play().catch(() => {});
         }
       });
+    }
+
+    setupPhraseHighlight() {
+      let isSelecting = false;
+      let selectionTimer = null;
+
+      const onOverlayMouseDown = (e) => {
+        if (e.button !== 0) return;
+        isSelecting = true;
+      };
+
+      const onMouseUp = () => {
+        if (!isSelecting) return;
+        isSelecting = false;
+        clearTimeout(selectionTimer);
+        selectionTimer = setTimeout(() => {
+          this.checkSelectionAndLookup();
+        }, 35);
+      };
+
+      this.overlay.addEventListener("mousedown", onOverlayMouseDown);
+      window.addEventListener("mouseup", onMouseUp);
+
+      this.cleanupPhraseHighlight = () => {
+        clearTimeout(selectionTimer);
+        this.overlay.removeEventListener("mousedown", onOverlayMouseDown);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+    }
+
+    checkSelectionAndLookup() {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) return;
+
+      const rawText = sel.toString().trim();
+      if (!rawText) return;
+
+      // Ensure selection belongs to this overlay
+      const anchorNode = sel.anchorNode;
+      const focusNode = sel.focusNode;
+      if (!anchorNode || !focusNode) return;
+      if (!this.overlay.contains(anchorNode) || !this.overlay.contains(focusNode)) return;
+
+      // Clean punctuation from start/end
+      const cleanPhrase = rawText.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").trim();
+      if (!cleanPhrase) return;
+
+      try {
+        const range = sel.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        if (rect.width <= 0 && rect.height <= 0) return;
+
+        // Suppress single-word click
+        this.justHighlightedPhrase = true;
+        setTimeout(() => {
+          this.justHighlightedPhrase = false;
+        }, 350);
+
+        this.handleWordClick(cleanPhrase, this.currentCueText, {
+          getBoundingClientRect: () => rect,
+          isPhrase: cleanPhrase.includes(" ") || cleanPhrase.includes("-"),
+        });
+      } catch {}
     }
 
     attachEvents() {
@@ -1348,33 +1508,155 @@
       if (container.dataset.renderedText === text) return;
       container.dataset.renderedText = text;
       container.innerHTML = "";
-      const tokens = text.split(/([\s,.;:!?()[\]'"]+)/);
 
-      for (const token of tokens) {
-        if (!token) continue;
-        if (!HAS_LETTER.test(token)) {
-          container.appendChild(document.createTextNode(token));
+      const clean = (str) => (str || "").toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+      const tokens = text.split(/([\s,.;:!?()[\]'"]+)/);
+      let i = 0;
+
+      while (i < tokens.length) {
+        const token = tokens[i];
+        if (!token) {
+          i++;
           continue;
         }
 
+        if (!HAS_LETTER.test(token)) {
+          container.appendChild(document.createTextNode(token));
+          i++;
+          continue;
+        }
+
+        const w1 = clean(token);
+        const l1 = VERB_LEMMAS[w1] || w1;
+
+        // 1. Try 3-word phrase match (e.g. "look forward to", "run out of")
+        if (i + 4 < tokens.length && HAS_LETTER.test(tokens[i + 2]) && HAS_LETTER.test(tokens[i + 4])) {
+          const sep1 = tokens[i + 1];
+          const sep2 = tokens[i + 3];
+          if (/^[\s-]+$/.test(sep1) && /^[\s-]+$/.test(sep2)) {
+            const w2 = clean(tokens[i + 2]);
+            const w3 = clean(tokens[i + 4]);
+            const phraseExact = `${w1} ${w2} ${w3}`;
+            const phraseLemma = `${l1} ${w2} ${w3}`;
+
+            if (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma) || COMMON_PHRASAL_VERBS.has(phraseLemma)) {
+              const phraseDisplay = `${tokens[i]}${sep1}${tokens[i + 2]}${sep2}${tokens[i + 4]}`;
+              const phraseSpan = document.createElement("span");
+              phraseSpan.className = "vimi-sub-phrase";
+              phraseSpan.dataset.phrase = phraseLemma;
+              phraseSpan.textContent = phraseDisplay;
+              phraseSpan.title = `Phrasal verb: "${phraseDisplay}" (Click to translate)`;
+
+              if (cfg.videoSubHighlightVocab && (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma))) {
+                phraseSpan.classList.add("vimi-sub-saved");
+                phraseSpan.title = `Saved phrase: "${phraseDisplay}"`;
+              }
+
+              phraseSpan.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (this.justHighlightedPhrase) return;
+                const sel = window.getSelection();
+                if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
+                this.lastClickedWordSpan = phraseSpan;
+                this.handleWordClick(phraseDisplay, text, phraseSpan);
+              });
+
+              container.appendChild(phraseSpan);
+              i += 5;
+              continue;
+            }
+          }
+        }
+
+        // 2. Try 2-word phrase match (e.g. "figure out", "give up", "carry out")
+        if (i + 2 < tokens.length && HAS_LETTER.test(tokens[i + 2])) {
+          const sep1 = tokens[i + 1];
+          if (/^[\s-]+$/.test(sep1)) {
+            const w2 = clean(tokens[i + 2]);
+            const phraseExact = `${w1} ${w2}`;
+            const phraseLemma = `${l1} ${w2}`;
+
+            if (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma) || COMMON_PHRASAL_VERBS.has(phraseLemma)) {
+              const phraseDisplay = `${tokens[i]}${sep1}${tokens[i + 2]}`;
+              const phraseSpan = document.createElement("span");
+              phraseSpan.className = "vimi-sub-phrase";
+              phraseSpan.dataset.phrase = phraseLemma;
+              phraseSpan.textContent = phraseDisplay;
+              phraseSpan.title = `Phrasal verb: "${phraseDisplay}" (Click to translate)`;
+
+              if (cfg.videoSubHighlightVocab && (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma))) {
+                phraseSpan.classList.add("vimi-sub-saved");
+                phraseSpan.title = `Saved phrase: "${phraseDisplay}"`;
+              }
+
+              phraseSpan.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (this.justHighlightedPhrase) return;
+                const sel = window.getSelection();
+                if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
+                this.lastClickedWordSpan = phraseSpan;
+                this.handleWordClick(phraseDisplay, text, phraseSpan);
+              });
+
+              container.appendChild(phraseSpan);
+              i += 3;
+              continue;
+            }
+          }
+        }
+
+        // 3. Single word token
         const span = document.createElement("span");
         span.className = "vimi-sub-word";
         span.textContent = token;
+        span.dataset.word = w1;
 
-        const cleanWord = token.toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-        span.dataset.word = cleanWord;
-
-        if (cfg.videoSubHighlightVocab && savedVocabSet.has(cleanWord)) {
+        if (cfg.videoSubHighlightVocab && savedVocabSet.has(w1)) {
           span.classList.add("vimi-sub-saved");
           span.title = "Saved in your Vimi vocabulary";
         }
 
         span.addEventListener("click", (e) => {
           e.stopPropagation();
-          this.handleWordClick(cleanWord, text, span);
+          if (this.justHighlightedPhrase) return;
+          const sel = window.getSelection();
+          if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
+
+          // Shift-click range selection
+          if (e.shiftKey && this.lastClickedWordSpan && this.lastClickedWordSpan !== span && this.lastClickedWordSpan.parentNode === container) {
+            const allSpans = Array.from(container.querySelectorAll(".vimi-sub-word, .vimi-sub-phrase"));
+            const idx1 = allSpans.indexOf(this.lastClickedWordSpan);
+            const idx2 = allSpans.indexOf(span);
+            if (idx1 !== -1 && idx2 !== -1) {
+              const start = Math.min(idx1, idx2);
+              const end = Math.max(idx1, idx2);
+              const selectedTokens = allSpans.slice(start, end + 1);
+              const phraseStr = selectedTokens.map((s) => s.textContent).join(" ").trim();
+              const rect1 = selectedTokens[0].getBoundingClientRect();
+              const rect2 = selectedTokens[selectedTokens.length - 1].getBoundingClientRect();
+              const combinedRect = {
+                left: Math.min(rect1.left, rect2.left),
+                right: Math.max(rect1.right, rect2.right),
+                top: Math.min(rect1.top, rect2.top),
+                bottom: Math.max(rect1.bottom, rect2.bottom),
+                width: Math.abs(rect2.right - rect1.left),
+                height: Math.max(rect1.height, rect2.height),
+              };
+
+              this.handleWordClick(phraseStr, text, {
+                getBoundingClientRect: () => combinedRect,
+                isPhrase: true,
+              });
+              return;
+            }
+          }
+
+          this.lastClickedWordSpan = span;
+          this.handleWordClick(w1, text, span);
         });
 
         container.appendChild(span);
+        i++;
       }
     }
 
@@ -1388,17 +1670,17 @@
 
     highlightSavedWords() {
       if (!this.overlay) return;
-      this.overlay.querySelectorAll(".vimi-sub-word").forEach((span) => {
-        const word = span.dataset.word;
-        if (word && savedVocabSet.has(word)) {
-          span.classList.add("vimi-sub-saved");
-          span.title = "Saved in your Vimi vocabulary";
+      this.overlay.querySelectorAll(".vimi-sub-word, .vimi-sub-phrase").forEach((el) => {
+        const key = el.dataset.phrase || el.dataset.word;
+        if (key && (savedVocabSet.has(key) || savedVocabSet.has(el.textContent.trim().toLowerCase()))) {
+          el.classList.add("vimi-sub-saved");
+          el.title = `Saved in your Vimi vocabulary: "${el.textContent.trim()}"`;
         }
       });
     }
 
-    async handleWordClick(word, context, targetSpan) {
-      if (!word) return;
+    async handleWordClick(term, context, targetSpan) {
+      if (!term) return;
       if (!this.video.paused) {
         this.video.pause();
       }
@@ -1406,31 +1688,38 @@
       // Remove any existing lookup popups
       document.querySelectorAll("#vimi-sub-lookup-pop").forEach((p) => p.remove());
 
+      const isPhrase = term.includes(" ") || term.includes("-") || Boolean(targetSpan?.isPhrase);
+
       const pop = document.createElement("div");
       pop.id = "vimi-sub-lookup-pop";
       pop.style.cssText = `
         position: absolute; z-index: 2147483647; background: #1e293b; color: #f8fafc;
         border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 12px 14px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6); font-size: 12px; width: 220px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6); font-size: 12px; width: 240px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         text-align: left;
       `;
 
       pop.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
-          <b style="font-size: 14px; color: #38bdf8;">${word}</b>
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <b style="font-size: 14px; color: #38bdf8;">${term}</b>
+            ${isPhrase ? `<span class="vimi-pop-chip">Phrase</span>` : ""}
+          </div>
           <button id="vimiPopClose" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">✕</button>
         </div>
         <div id="vimiPopTrans" style="color: #cbd5e1; margin-bottom: 8px;">Translating...</div>
         <button id="vimiPopSave" style="width: 100%; background: #1a73e8; color: #fff; border: none; border-radius: 6px; padding: 6px; font-weight: 600; cursor: pointer;">
-          + Add to Vimi Vocab
+          ${isPhrase ? "+ Add Phrase to Vimi Vocab" : "+ Add to Vimi Vocab"}
         </button>
       `;
 
       const rect = targetSpan.getBoundingClientRect();
       const parentRect = (document.fullscreenElement || this.container).getBoundingClientRect();
-      pop.style.left = `${Math.max(10, rect.left - parentRect.left - 40)}px`;
-      pop.style.top = `${Math.max(10, rect.top - parentRect.top - 100)}px`;
+      const popLeft = Math.max(10, Math.min(parentRect.width - 250, rect.left - parentRect.left - 20));
+      const popTop = Math.max(10, rect.top - parentRect.top - 110);
+      pop.style.left = `${popLeft}px`;
+      pop.style.top = `${popTop}px`;
 
       (document.fullscreenElement || this.container).appendChild(pop);
 
@@ -1438,7 +1727,7 @@
 
       let trans = "";
       try {
-        trans = await translateCue(word);
+        trans = await translateCue(term);
         pop.querySelector("#vimiPopTrans").textContent = trans;
       } catch {
         pop.querySelector("#vimiPopTrans").textContent = "Translation unavailable";
@@ -1446,15 +1735,16 @@
 
       pop.querySelector("#vimiPopSave").onclick = async () => {
         await F.addWord({
-          term: word,
+          term: term,
           translation: trans,
           src: cfg.src,
           tgt: cfg.tgt,
           context: context,
           url: window.location.href,
         });
-        savedVocabSet.add(word);
-        targetSpan.classList.add("vimi-sub-saved");
+        savedVocabSet.add(term.toLowerCase());
+        if (targetSpan.classList) targetSpan.classList.add("vimi-sub-saved");
+        this.highlightSavedWords();
         pop.querySelector("#vimiPopSave").textContent = "Saved ✓";
         pop.querySelector("#vimiPopSave").style.background = "#22c55e";
         setTimeout(() => pop.remove(), 1200);
@@ -1467,6 +1757,7 @@
       this.cancelStickyClear();
       if (this.cleanupBadgeDrag) this.cleanupBadgeDrag(true);
       if (this.cleanupOverlayDrag) this.cleanupOverlayDrag(true);
+      if (this.cleanupPhraseHighlight) this.cleanupPhraseHighlight();
       if (this.boundResize) window.removeEventListener("resize", this.boundResize);
       if (this.domObserver) this.domObserver.disconnect();
       if (this.activeTrack) {

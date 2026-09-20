@@ -74,6 +74,13 @@
   align-items: flex-start;
   justify-content: left;
   width: 100%;
+  user-select: text;
+  cursor: text;
+}
+
+.vimi-sub-content ::selection {
+  background: rgba(56, 189, 248, 0.45);
+  color: #ffffff;
 }
 
 /* Source / Original line — YouTube Closed Caption typography (Left-aligned for sticky word positions) */
@@ -159,10 +166,49 @@
   border-bottom-color: rgba(255, 255, 255, 0.5);
 }
 
-/* Highlight saved words already in user's Vimi vocabulary */
+/* Interactive phrasal verbs & multi-word phrases */
+.vimi-sub-phrase {
+  display: inline;
+  cursor: pointer;
+  padding: 1px 4px;
+  margin: 0 -1px;
+  border-radius: 4px;
+  border-bottom: 2px dashed rgba(56, 189, 248, 0.6);
+  transition: color 0.12s ease, background-color 0.12s ease;
+  position: relative;
+}
+
+.vimi-sub-phrase:hover {
+  background-color: rgba(56, 189, 248, 0.25);
+  color: #ffffff;
+  border-bottom-color: #38bdf8;
+}
+
+/* Highlight saved words & phrases already in user's Vimi vocabulary */
 .vimi-sub-word.vimi-sub-saved {
   border-bottom: 2px dotted var(--bt-trans-color, #38bdf8);
   color: #bae6fd;
+}
+
+.vimi-sub-phrase.vimi-sub-saved {
+  border-bottom: 2px solid var(--bt-trans-color, #38bdf8);
+  background-color: rgba(56, 189, 248, 0.18);
+  color: #bae6fd;
+}
+
+/* Popup phrase chip */
+.vimi-pop-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(56, 189, 248, 0.2);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  vertical-align: middle;
 }
 
 /* Floating Video Control Badge */
