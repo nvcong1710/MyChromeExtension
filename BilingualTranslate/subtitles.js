@@ -72,8 +72,160 @@
     warmed: "warm", warms: "warm", warming: "warm",
     watched: "watch", watches: "watch", watching: "watch",
     wrapped: "wrap", wraps: "wrap", wrapping: "wrap",
-    wrote: "write", writes: "write", writing: "write", written: "write"
+    wrote: "write", writes: "write", writing: "write", written: "write",
+    went: "go", goes: "go", going: "go", gone: "go",
+    left: "leave", leaves: "leave", leaving: "leave",
+    sat: "sit", sits: "sit", sitting: "sit",
+    built: "build", builds: "build", building: "build",
+    bought: "buy", buys: "buy", buying: "buy",
+    caught: "catch", catches: "catch", catching: "catch",
+    drew: "draw", draws: "draw", drawing: "draw",
+    blew: "blow", blows: "blow", blowing: "blow", blown: "blow",
+    stuck: "stick", sticks: "stick", sticking: "stick",
+    led: "lead", leads: "lead", leading: "lead",
+    met: "meet", meets: "meet", meeting: "meet",
+    sent: "send", sends: "send", sending: "send",
+    lost: "lose", loses: "lose", losing: "lose",
+    won: "win", wins: "win", winning: "win",
+    wore: "wear", wears: "wear", wearing: "wear", worn: "wear"
   };
+
+  // English unpluralizer for matching plural noun phrases (e.g. "operating systems" -> "operating system")
+  function unpluralize(word) {
+    if (!word || word.length < 3) return word;
+    const w = word.toLowerCase();
+    const irregulars = {
+      people: "person", children: "child", men: "man", women: "woman",
+      teeth: "tooth", feet: "foot", mice: "mouse", data: "data",
+      media: "media", criteria: "criterion", phenomena: "phenomenon",
+      analyses: "analysis", crises: "crisis", bases: "basis"
+    };
+    if (irregulars[w]) return irregulars[w];
+    if (w.endsWith("ies") && w.length > 4) {
+      if (w === "series" || w === "species") return w;
+      return w.slice(0, -3) + "y";
+    }
+    if (w.endsWith("es") && w.length > 3) {
+      if (w.endsWith("shes") || w.endsWith("ches") || w.endsWith("xes") || w.endsWith("sses") || w.endsWith("zes")) {
+        return w.slice(0, -2);
+      }
+      if (w.endsWith("oes")) {
+        return w.slice(0, -2);
+      }
+    }
+    if (w.endsWith("s") && !w.endsWith("ss") && !w.endsWith("us") && !w.endsWith("is")) {
+      return w.slice(0, -1);
+    }
+    return w;
+  }
+
+  // High-frequency English compound nouns & noun phrases across tech, business, life & science
+  const COMMON_NOUN_PHRASES = new Set([
+    // Technology, Computing, AI & Web
+    "artificial intelligence", "machine learning", "deep learning", "neural network",
+    "natural language processing", "computer vision", "generative ai", "large language model",
+    "data science", "data structure", "data center", "big data", "cloud computing",
+    "cyber security", "cybersecurity", "source code", "open source", "operating system",
+    "search engine", "web browser", "mobile app", "mobile phone", "smart phone",
+    "smart watch", "smart contract", "user interface", "user experience", "graphic card",
+    "graphics card", "video card", "hard drive", "solid state drive", "flash drive",
+    "quantum computing", "virtual reality", "augmented reality", "mixed reality",
+    "internet of things", "social media", "social network", "video game", "game console",
+    "home page", "landing page", "search bar", "command line", "text editor",
+    "code editor", "file system", "version control", "pull request", "git repository",
+    "api key", "access token", "access point", "ip address", "domain name", "web server",
+    "cloud storage", "cache memory", "random access memory", "screen resolution",
+    "aspect ratio", "refresh rate", "touch screen", "keyboard shortcut", "dark mode",
+    "light mode", "software engineer", "software development", "web developer",
+    "full stack", "front end", "back end", "machine code", "database management",
+    "relational database", "central processing unit",
+
+    // Business, Finance, Economics & Work
+    "credit card", "debit card", "bank account", "business model", "business plan",
+    "supply chain", "market share", "market value", "market cap", "stock market",
+    "stock exchange", "exchange rate", "interest rate", "real estate", "cash flow",
+    "profit margin", "balance sheet", "hedge fund", "venture capital", "private equity",
+    "mutual fund", "human resources", "public relations", "customer service",
+    "customer support", "customer care", "sales representative", "target audience",
+    "target market", "board of directors", "chief executive officer",
+    "chief operating officer", "chief technology officer", "chief financial officer",
+    "full time", "part time", "minimum wage", "living wage", "job description",
+    "job offer", "job interview", "job market", "cover letter", "terms of service",
+    "terms and conditions", "privacy policy", "free trial", "return on investment",
+    "break even point", "non disclosure agreement",
+
+    // Home, Daily Life, Buildings & Shopping
+    "living room", "dining room", "bed room", "master bedroom", "guest room",
+    "laundry room", "rest room", "swimming pool", "washing machine", "vacuum cleaner",
+    "coffee maker", "microwave oven", "air conditioner", "ceiling fan", "smoke detector",
+    "remote control", "alarm clock", "light bulb", "power bank", "hair dryer",
+    "dining table", "coffee table", "grocery store", "department store", "shopping mall",
+    "convenience store", "parking lot", "parking space", "bus stop", "train station",
+    "subway station", "gas station", "fire station", "police station", "post office",
+    "traffic light", "traffic jam", "speed limit", "cross walk", "road trip",
+    "high school", "middle school", "elementary school", "higher education",
+    "university student", "college student", "boarding pass", "luggage claim",
+    "baggage claim", "carry on",
+
+    // Food & Dining
+    "ice cream", "fast food", "junk food", "hot dog", "soft drink", "french fries",
+    "potato chips", "peanut butter", "cream cheese", "salad dressing", "green tea",
+    "black tea", "bubble tea", "maple syrup", "orange juice", "apple juice",
+
+    // Health, Medicine & Body
+    "first aid", "first aid kit", "immune system", "heart attack", "heart disease",
+    "blood pressure", "blood test", "blood sugar", "health care", "health insurance",
+    "mental health", "side effect", "life expectancy",
+
+    // Science, Environment & Energy
+    "climate change", "global warming", "carbon footprint", "greenhouse effect",
+    "greenhouse gas", "renewable energy", "clean energy", "fossil fuel", "electric vehicle",
+    "public transport", "public transportation", "solar energy", "solar panel",
+    "solar system", "outer space", "milky way", "space station", "black hole",
+
+    // Society, Government, Politics & Law
+    "human rights", "death penalty", "civil rights", "free speech", "freedom of speech",
+    "prime minister", "vice president", "first lady", "head of state", "white house",
+    "supreme court", "high court", "law enforcement", "police officer", "fire fighter",
+    "public sector", "private sector", "civil society", "social security", "generation gap",
+    "peer pressure", "common sense", "role model", "rule of thumb", "point of view",
+    "quality of life", "standard of living", "cost of living"
+  ]);
+
+  // Conversational idioms, discourse connectors & multi-word expressions
+  const COMMON_IDIOMS = new Set([
+    // 5-word phrases
+    "as a matter of fact", "at the end of the day", "in the blink of an eye",
+    "beat around the bush", "take with a grain of salt",
+
+    // 4-word phrases & discourse connectors
+    "at the same time", "on the other hand", "in addition to", "in order to",
+    "as well as", "as soon as", "as long as", "once upon a time", "all of a sudden",
+    "out of the blue", "behind the scenes", "from time to time", "little by little",
+    "step by step", "day by day", "side by side", "hand in hand", "face to face",
+    "up to date", "down to earth", "state of the art", "piece of cake", "a piece of cake",
+    "round the clock", "every now and then", "once in a while", "sooner or later",
+    "more or less", "over and over", "back and forth", "off and on", "up and down",
+    "here and there", "in terms of", "on behalf of", "in front of", "in charge of",
+    "in search of", "in need of", "in case of", "in light of", "by means of",
+    "for the sake of", "on the basis of", "with respect to", "with regard to",
+    "as far as", "so to speak", "truth be told", "in the long run", "in the short run",
+    "by and large", "all in all", "first and foremost", "loud and clear", "pros and cons",
+    "safe and sound", "give and take", "trial and error", "touch and go", "ups and downs",
+
+    // 3-word phrases & prepositions
+    "by the way", "first of all", "for example", "for instance", "in fact",
+    "in general", "in particular", "after all", "so far", "at least", "at all",
+    "at once", "at last", "all at once", "out of", "up to", "because of", "due to",
+    "according to", "in spite of", "instead of", "each other", "one another",
+    "no matter", "right now", "as if", "as though", "even though", "even if",
+    "so that", "upside down", "inside out", "a lot of", "lots of", "plenty of",
+    "kind of", "sort of", "ahead of", "thanks to", "close to", "next to", "prior to",
+    "regardless of", "contrary to", "apart from", "aside from", "along with",
+    "together with", "as for", "as of", "make sense", "pay attention", "take advantage",
+    "keep in mind", "bear in mind", "lose track", "take into account", "get the hang",
+    "have a look", "take a look"
+  ]);
 
   // High-frequency English phrasal verbs for instant multi-word recognition
   const COMMON_PHRASAL_VERBS = new Set([
@@ -83,37 +235,122 @@
     "look up to", "make up for", "stand up for", "take care of", "run away from",
     "get away with", "check up on", "come down with", "drop out of", "feel up to",
     "go through with", "live up to", "look out for", "read up on", "turn out to",
+    "face up to", "come up against", "look back on", "back out of", "hold on to",
+    "brush up on", "fall back on", "get out of", "zero in on",
     // 2-word phrasal verbs
-    "ask out", "back up", "blow up", "break down", "break in", "break out", "break up",
-    "bring about", "bring up", "bring back", "call back", "call off", "call on",
-    "calm down", "carry on", "carry out", "catch up", "check in", "check out",
-    "cheer up", "clean up", "clear up", "close down", "come across", "come along",
-    "come back", "come from", "come in", "come on", "come out", "come over",
-    "count on", "cross out", "cut off", "cut out", "deal with", "drop by", "drop off",
-    "drop out", "eat out", "end up", "fall apart", "fall behind", "fall down",
-    "fall out", "figure out", "fill in", "fill out", "fill up", "find out",
-    "get across", "get ahead", "get along", "get around", "get away", "get back",
-    "get by", "get in", "get off", "get on", "get out", "get over", "get through",
-    "get together", "get up", "give away", "give back", "give in", "give out",
-    "give up", "go ahead", "go away", "go back", "go on", "go out", "go over",
-    "go through", "grow up", "hand in", "hand out", "hand over", "hang on",
-    "hang out", "hang up", "hold on", "hold back", "hold up", "keep on", "keep up",
-    "lay off", "let down", "let in", "let out", "look after", "look back",
-    "look down", "look for", "look forward", "look in", "look into", "look out",
-    "look over", "look through", "look up", "make out", "make sure", "make up",
-    "pass away", "pass out", "pay back", "pay off", "pick out", "pick up",
-    "point out", "pull over", "put away", "put down", "put off", "put on",
-    "put out", "put up", "rely on", "run away", "run into", "run out", "run over",
-    "set off", "set out", "set up", "show off", "show up", "shut down", "shut up",
-    "sign in", "sign out", "sign up", "slow down", "speed up", "stand by",
-    "stand for", "stand out", "stand up", "stay up", "stick to", "switch off",
-    "switch on", "take after", "take apart", "take away", "take back", "take off",
-    "take on", "take out", "take over", "take up", "tear down", "tear up",
-    "think over", "throw away", "throw out", "throw up", "try on", "try out",
-    "turn around", "turn away", "turn back", "turn down", "turn in", "turn into",
-    "turn off", "turn on", "turn out", "turn over", "turn up", "wake up",
-    "warm up", "watch out", "work out", "wrap up", "write down"
+    "act up", "ask out", "back down", "back off", "back out", "back up", "blow out",
+    "blow up", "boil down", "break down", "break in", "break into", "break off",
+    "break out", "break through", "break up", "bring about", "bring along", "bring back",
+    "bring down", "bring forward", "bring in", "bring off", "bring on", "bring out",
+    "bring up", "build up", "burn down", "burn out", "burn up", "call back", "call for",
+    "call in", "call off", "call on", "call out", "call up", "calm down", "care for",
+    "carry away", "carry off", "carry on", "carry out", "carry over", "carry through",
+    "catch on", "catch up", "check in", "check into", "check off", "check on",
+    "check out", "check over", "check up", "cheer on", "cheer up", "clean out",
+    "clean up", "clear out", "clear up", "close down", "close in", "close up",
+    "come about", "come across", "come along", "come apart", "come around", "come back",
+    "come by", "come down", "come forward", "come in", "come into", "come off",
+    "come on", "come out", "come over", "come round", "come through", "come to",
+    "come up", "cool down", "cool off", "count on", "cross out", "cut back",
+    "cut down", "cut in", "cut off", "cut out", "deal with", "die down", "die out",
+    "do away", "do over", "do without", "draw back", "draw in", "draw up", "dress up",
+    "drop by", "drop in", "drop off", "drop out", "dry off", "dry out", "dry up",
+    "eat out", "eat up", "end up", "fade away", "fall apart", "fall back", "fall behind",
+    "fall down", "fall for", "fall in", "fall off", "fall out", "fall over", "fall through",
+    "fight back", "fight off", "figure out", "fill in", "fill out", "fill up",
+    "find out", "fix up", "get across", "get ahead", "get along", "get around",
+    "get away", "get back", "get by", "get down", "get in", "get into", "get off",
+    "get on", "get out", "get over", "get through", "get together", "get up",
+    "give away", "give back", "give in", "give off", "give out", "give up",
+    "go ahead", "go along", "go around", "go away", "go back", "go by", "go down",
+    "go for", "go in", "go into", "go off", "go on", "go out", "go over", "go through",
+    "go under", "go up", "go with", "go without", "grow apart", "grow into", "grow out",
+    "grow up", "hand back", "hand down", "hand in", "hand out", "hand over",
+    "hang around", "hang back", "hang on", "hang out", "hang up", "head back",
+    "head for", "head off", "head out", "hear from", "hear of", "heat up", "help out",
+    "hold back", "hold down", "hold off", "hold on", "hold out", "hold up", "hurry up",
+    "keep away", "keep down", "keep from", "keep off", "keep on", "keep out",
+    "keep up", "kick off", "kick out", "knock down", "knock off", "knock out",
+    "lay off", "lead to", "leave behind", "leave out", "let down", "let in",
+    "let off", "let on", "let out", "lie down", "light up", "line up", "live on",
+    "live up", "lock out", "lock up", "look after", "look ahead", "look around",
+    "look at", "look back", "look down", "look for", "look forward", "look in",
+    "look into", "look on", "look out", "look over", "look round", "look through",
+    "look up", "make do", "make for", "make off", "make out", "make sure", "make up",
+    "mix up", "move along", "move in", "move on", "move out", "narrow down",
+    "open up", "pass away", "pass by", "pass down", "pass off", "pass on",
+    "pass out", "pass over", "pass up", "pay back", "pay off", "pay up",
+    "pick on", "pick out", "pick up", "pile up", "plug in", "point out",
+    "pull away", "pull down", "pull in", "pull off", "pull on", "pull out",
+    "pull over", "pull through", "pull together", "pull up", "push ahead",
+    "push back", "push forward", "push on", "put across", "put aside", "put away",
+    "put back", "put down", "put forward", "put in", "put off", "put on",
+    "put out", "put through", "put together", "put up", "rely on", "ring back",
+    "ring up", "rip off", "round up", "rule out", "run across", "run after",
+    "run away", "run down", "run in", "run into", "run off", "run on",
+    "run out", "run over", "run through", "run up", "save up", "see off",
+    "see through", "see to", "sell out", "set apart", "set aside", "set back",
+    "set down", "set in", "set off", "set on", "set out", "set up", "settle down",
+    "settle in", "settle on", "settle up", "show off", "show up", "shut down",
+    "shut in", "shut out", "shut up", "sign in", "sign off", "sign on", "sign out",
+    "sign up", "sit down", "sleep in", "sleep over", "slow down", "sort out",
+    "speak out", "speak up", "speed up", "split up", "stand back", "stand by",
+    "stand down", "stand for", "stand in", "stand out", "stand up", "start over",
+    "start up", "stay away", "stay behind", "stay in", "stay out", "stay up",
+    "step back", "step down", "step forward", "step in", "step out", "step up",
+    "stick around", "stick out", "stick to", "stick together", "stick with",
+    "switch off", "switch on", "take after", "take apart", "take away", "take back",
+    "take down", "take in", "take off", "take on", "take out", "take over",
+    "take to", "take up", "talk down", "talk into", "talk out", "talk over",
+    "tear down", "tear up", "tell apart", "tell off", "think back", "think over",
+    "think through", "think up", "throw away", "throw out", "throw up", "tidy up",
+    "tire out", "touch down", "touch on", "touch up", "track down", "trade in",
+    "try on", "try out", "turn around", "turn away", "turn back", "turn down",
+    "turn in", "turn into", "turn off", "turn on", "turn out", "turn over",
+    "turn up", "use up", "wait on", "wait up", "wake up", "warm up", "wash up",
+    "watch out", "wear off", "wear out", "wind down", "wind up", "wipe out",
+    "work out", "wrap up", "write down", "write in", "write off", "write out"
   ]);
+
+  // Match phrase against known sets and saved vocabulary
+  function findPhraseMatch(exact, vLemma, nUnplural, bothLemma) {
+    // 1. User saved vocabulary (exact, lemma, unpluralized)
+    const savedCandidates = [exact, nUnplural, vLemma, bothLemma];
+    for (const c of savedCandidates) {
+      if (c && savedVocabSet.has(c)) {
+        return { key: c, type: "Saved Phrase", isSaved: true };
+      }
+    }
+
+    // 2. Noun Phrases (exact, unpluralized)
+    if (COMMON_NOUN_PHRASES.has(exact)) return { key: exact, type: "Noun Phrase" };
+    if (nUnplural && COMMON_NOUN_PHRASES.has(nUnplural)) return { key: nUnplural, type: "Noun Phrase" };
+
+    // 3. Phrasal Verbs (exact, verb lemma)
+    if (COMMON_PHRASAL_VERBS.has(exact)) return { key: exact, type: "Phrasal Verb" };
+    if (vLemma && COMMON_PHRASAL_VERBS.has(vLemma)) return { key: vLemma, type: "Phrasal Verb" };
+
+    // 4. Idioms & Conversational Phrases (exact, unpluralized, verb lemma)
+    if (COMMON_IDIOMS.has(exact)) return { key: exact, type: "Phrase / Idiom" };
+    if (nUnplural && COMMON_IDIOMS.has(nUnplural)) return { key: nUnplural, type: "Phrase / Idiom" };
+    if (vLemma && COMMON_IDIOMS.has(vLemma)) return { key: vLemma, type: "Phrase / Idiom" };
+
+    return null;
+  }
+
+  // Get display category name for arbitrary phrase text
+  function getPhraseType(phraseText) {
+    if (!phraseText) return "Phrase";
+    const cleanStr = phraseText.trim().toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    const words = cleanStr.split(/[\s-]+/).filter(Boolean);
+    if (words.length <= 1) return "";
+    const exact = words.join(" ");
+    const vLemma = [VERB_LEMMAS[words[0]] || words[0], ...words.slice(1)].join(" ");
+    const nUnplural = [...words.slice(0, -1), unpluralize(words[words.length - 1])].join(" ");
+    const match = findPhraseMatch(exact, vLemma, nUnplural, "");
+    if (match) return match.type;
+    return "Phrase";
+  }
 
   // Clean WebVTT and HTML tags from subtitle cues
   function cleanCueText(raw) {
@@ -1531,85 +1768,76 @@
         }
 
         const w1 = clean(token);
-        const l1 = VERB_LEMMAS[w1] || w1;
 
-        // 1. Try 3-word phrase match (e.g. "look forward to", "run out of")
-        if (i + 4 < tokens.length && HAS_LETTER.test(tokens[i + 2]) && HAS_LETTER.test(tokens[i + 4])) {
-          const sep1 = tokens[i + 1];
-          const sep2 = tokens[i + 3];
-          if (/^[\s-]+$/.test(sep1) && /^[\s-]+$/.test(sep2)) {
-            const w2 = clean(tokens[i + 2]);
-            const w3 = clean(tokens[i + 4]);
-            const phraseExact = `${w1} ${w2} ${w3}`;
-            const phraseLemma = `${l1} ${w2} ${w3}`;
+        // Multi-word phrase matching (greedy longest match: 5 down to 2 words)
+        let matched = false;
+        const maxL = Math.min(5, Math.floor((tokens.length - i + 1) / 2));
 
-            if (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma) || COMMON_PHRASAL_VERBS.has(phraseLemma)) {
-              const phraseDisplay = `${tokens[i]}${sep1}${tokens[i + 2]}${sep2}${tokens[i + 4]}`;
-              const phraseSpan = document.createElement("span");
-              phraseSpan.className = "vimi-sub-phrase";
-              phraseSpan.dataset.phrase = phraseLemma;
-              phraseSpan.textContent = phraseDisplay;
-              phraseSpan.title = `Phrasal verb: "${phraseDisplay}" (Click to translate)`;
+        for (let L = maxL; L >= 2; L--) {
+          const spanLen = 2 * L - 1;
+          if (i + spanLen > tokens.length) continue;
 
-              if (cfg.videoSubHighlightVocab && (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma))) {
-                phraseSpan.classList.add("vimi-sub-saved");
-                phraseSpan.title = `Saved phrase: "${phraseDisplay}"`;
-              }
-
-              phraseSpan.addEventListener("click", (e) => {
-                e.stopPropagation();
-                if (this.justHighlightedPhrase) return;
-                const sel = window.getSelection();
-                if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
-                this.lastClickedWordSpan = phraseSpan;
-                this.handleWordClick(phraseDisplay, text, phraseSpan);
-              });
-
-              container.appendChild(phraseSpan);
-              i += 5;
-              continue;
+          let valid = true;
+          const wordList = [];
+          for (let k = 0; k < L; k++) {
+            const wIdx = i + 2 * k;
+            if (!HAS_LETTER.test(tokens[wIdx])) {
+              valid = false;
+              break;
             }
+            wordList.push(clean(tokens[wIdx]));
+            if (k < L - 1) {
+              const sIdx = i + 2 * k + 1;
+              if (!/^[\s-]+$/.test(tokens[sIdx])) {
+                valid = false;
+                break;
+              }
+            }
+          }
+
+          if (!valid) continue;
+
+          const exact = wordList.join(" ");
+          const firstLemma = VERB_LEMMAS[wordList[0]] || wordList[0];
+          const vLemma = [firstLemma, ...wordList.slice(1)].join(" ");
+          const lastUnplural = unpluralize(wordList[wordList.length - 1]);
+          const nUnplural = [...wordList.slice(0, -1), lastUnplural].join(" ");
+          const bothLemma = [firstLemma, ...wordList.slice(1, -1), lastUnplural].join(" ");
+
+          const match = findPhraseMatch(exact, vLemma, nUnplural, bothLemma);
+          if (match) {
+            const phraseDisplay = tokens.slice(i, i + spanLen).join("");
+            const phraseSpan = document.createElement("span");
+            phraseSpan.className = "vimi-sub-phrase";
+            phraseSpan.dataset.phrase = match.key;
+            phraseSpan.dataset.phraseType = match.type;
+            phraseSpan.textContent = phraseDisplay;
+            phraseSpan.title = `${match.type}: "${phraseDisplay}" (Click to translate)`;
+
+            if (cfg.videoSubHighlightVocab && (match.isSaved || savedVocabSet.has(match.key) || savedVocabSet.has(phraseDisplay.toLowerCase()))) {
+              phraseSpan.classList.add("vimi-sub-saved");
+              phraseSpan.title = `Saved in your Vimi vocabulary: "${phraseDisplay}"`;
+            }
+
+            phraseSpan.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (this.justHighlightedPhrase) return;
+              const sel = window.getSelection();
+              if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
+              this.lastClickedWordSpan = phraseSpan;
+              this.handleWordClick(phraseDisplay, text, phraseSpan, match.type);
+            });
+
+            container.appendChild(phraseSpan);
+            i += spanLen;
+            matched = true;
+            break;
           }
         }
 
-        // 2. Try 2-word phrase match (e.g. "figure out", "give up", "carry out")
-        if (i + 2 < tokens.length && HAS_LETTER.test(tokens[i + 2])) {
-          const sep1 = tokens[i + 1];
-          if (/^[\s-]+$/.test(sep1)) {
-            const w2 = clean(tokens[i + 2]);
-            const phraseExact = `${w1} ${w2}`;
-            const phraseLemma = `${l1} ${w2}`;
+        if (matched) continue;
 
-            if (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma) || COMMON_PHRASAL_VERBS.has(phraseLemma)) {
-              const phraseDisplay = `${tokens[i]}${sep1}${tokens[i + 2]}`;
-              const phraseSpan = document.createElement("span");
-              phraseSpan.className = "vimi-sub-phrase";
-              phraseSpan.dataset.phrase = phraseLemma;
-              phraseSpan.textContent = phraseDisplay;
-              phraseSpan.title = `Phrasal verb: "${phraseDisplay}" (Click to translate)`;
-
-              if (cfg.videoSubHighlightVocab && (savedVocabSet.has(phraseExact) || savedVocabSet.has(phraseLemma))) {
-                phraseSpan.classList.add("vimi-sub-saved");
-                phraseSpan.title = `Saved phrase: "${phraseDisplay}"`;
-              }
-
-              phraseSpan.addEventListener("click", (e) => {
-                e.stopPropagation();
-                if (this.justHighlightedPhrase) return;
-                const sel = window.getSelection();
-                if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
-                this.lastClickedWordSpan = phraseSpan;
-                this.handleWordClick(phraseDisplay, text, phraseSpan);
-              });
-
-              container.appendChild(phraseSpan);
-              i += 3;
-              continue;
-            }
-          }
-        }
-
-        // 3. Single word token
+        // Single word token
         const span = document.createElement("span");
         span.className = "vimi-sub-word";
         span.textContent = token;
@@ -1683,7 +1911,7 @@
       });
     }
 
-    async handleWordClick(term, context, targetSpan) {
+    async handleWordClick(term, context, targetSpan, explicitType) {
       if (!term) return;
       if (!this.video.paused) {
         this.video.pause();
@@ -1693,13 +1921,17 @@
       document.querySelectorAll("#vimi-sub-lookup-pop").forEach((p) => p.remove());
 
       const isPhrase = term.includes(" ") || term.includes("-") || Boolean(targetSpan?.isPhrase);
+      let typeBadge = explicitType || targetSpan?.dataset?.phraseType || targetSpan?.phraseType;
+      if (!typeBadge && isPhrase) {
+        typeBadge = getPhraseType(term);
+      }
 
       const pop = document.createElement("div");
       pop.id = "vimi-sub-lookup-pop";
       pop.style.cssText = `
         position: absolute; z-index: 2147483647; background: #1e293b; color: #f8fafc;
         border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 12px 14px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6); font-size: 12px; width: 240px;
+        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6); font-size: 12px; width: 250px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         text-align: left;
       `;
@@ -1708,13 +1940,13 @@
         <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 8px;">
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <b style="font-size: 14px; color: #38bdf8;">${term}</b>
-            ${isPhrase ? `<span class="vimi-pop-chip">Phrase</span>` : ""}
+            ${typeBadge ? `<span class="vimi-pop-chip">${typeBadge}</span>` : ""}
           </div>
           <button id="vimiPopClose" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">✕</button>
         </div>
         <div id="vimiPopTrans" style="color: #cbd5e1; margin-bottom: 8px;">Translating...</div>
         <button id="vimiPopSave" style="width: 100%; background: #1a73e8; color: #fff; border: none; border-radius: 6px; padding: 6px; font-weight: 600; cursor: pointer;">
-          ${isPhrase ? "+ Add Phrase to Vimi Vocab" : "+ Add to Vimi Vocab"}
+          ${typeBadge ? `+ Add ${typeBadge} to Vimi Vocab` : (isPhrase ? "+ Add Phrase to Vimi Vocab" : "+ Add to Vimi Vocab")}
         </button>
       `;
 
