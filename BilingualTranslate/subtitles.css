@@ -23,8 +23,8 @@
   line-height: 1.38;
   min-height: 28px;
   transition: opacity 0.22s ease;
-  cursor: grab;
-  touch-action: none;
+  cursor: default;
+  touch-action: auto;
 }
 
 .vimi-sub-overlay.vimi-sub-hidden {
@@ -41,29 +41,39 @@
   transition: none !important;
 }
 
-/* Drag handle on top edge — subtle hover-only handle so subtitles stay clean like YouTube */
+/* Dedicated drag handle on top edge for repositioning subtitles */
 .vimi-sub-drag-handle {
   position: absolute;
-  top: -8px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 32px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.3);
+  width: 52px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.45);
   border-radius: 9999px;
   cursor: grab;
   touch-action: none;
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, height 0.15s ease;
+  opacity: 0.35;
+  transition: opacity 0.18s ease, background 0.18s ease, height 0.15s ease, transform 0.15s ease;
+  z-index: 5;
 }
 
 .vimi-sub-overlay:hover .vimi-sub-drag-handle {
-  opacity: 0.85;
+  opacity: 0.92;
+  background: rgba(56, 189, 248, 0.7);
 }
 
-.vimi-sub-overlay:hover .vimi-sub-drag-handle:hover {
-  background: rgba(255, 255, 255, 0.65);
-  height: 5px;
+.vimi-sub-drag-handle:hover {
+  background: #38bdf8 !important;
+  height: 10px;
+  transform: translateX(-50%) scaleY(1.2);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.7);
+}
+
+.vimi-sub-overlay.vimi-sub-dragging .vimi-sub-drag-handle {
+  cursor: grabbing !important;
+  background: #38bdf8 !important;
+  opacity: 1 !important;
 }
 
 /* Subtitle Content Blocks */

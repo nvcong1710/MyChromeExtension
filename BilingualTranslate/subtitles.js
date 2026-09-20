@@ -684,6 +684,9 @@
       const getTarget = () => document.fullscreenElement || this.container;
 
       // ── A. Subtitle Overlay Card Dragging ──────────────────────────────────
+      // Dragging is exclusively initiated from the dedicated top drag handle (.vimi-sub-drag-handle)
+      // or by Alt+dragging the overlay background, so text selection inside the subtitles NEVER moves the box!
+      const dragHandle = this.overlay.querySelector(".vimi-sub-drag-handle");
       let overlayActivePointerId = null;
       let overlayStartX = 0, overlayStartY = 0;
       let overlayInitLeft = 0, overlayInitTop = 0;
@@ -697,6 +700,9 @@
         try {
           if (this.overlay.hasPointerCapture && this.overlay.hasPointerCapture(pid)) {
             this.overlay.releasePointerCapture(pid);
+          }
+          if (dragHandle && dragHandle.hasPointerCapture && dragHandle.hasPointerCapture(pid)) {
+            dragHandle.releasePointerCapture(pid);
           }
         } catch {}
 
@@ -793,8 +799,6 @@
       };
 
       const onOverlayPointerDown = (e) => {
-        // Do not drag if clicking inside subtitle text content, vocabulary words, or buttons
-        if (e.target.closest(".vimi-sub-content, .vimi-sub-word, .vimi-sub-phrase, .vimi-menu-btn, button, a, input, select")) return;
         if (e.pointerType === "mouse" && e.button !== 0) return; // only left click
         if (e.isPrimary === false) return;
 
@@ -816,7 +820,7 @@
         overlayInitTop = overlayRect.top - parentRect.top;
 
         try {
-          this.overlay.setPointerCapture(e.pointerId);
+          (e.currentTarget || this.overlay).setPointerCapture(e.pointerId);
         } catch {}
 
         window.addEventListener("pointermove", onOverlayPointerMove, { capture: true, passive: false });
@@ -829,11 +833,19 @@
       };
 
       this.cleanupOverlayDrag = endOverlayDrag;
-      this.overlay.addEventListener("pointerdown", onOverlayPointerDown);
+      if (dragHandle) {
+        dragHandle.addEventListener("pointerdown", onOverlayPointerDown);
+      }
+      this.overlay.addEventListener("pointerdown", (e) => {
+        // Only allow overlay background drag if user holds Alt key
+        if (e.altKey && !e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase, .vimi-pop-chip")) {
+          onOverlayPointerDown(e);
+        }
+      });
 
-      // Double-click overlay resets position to bottom center
+      // Double-click drag handle or overlay resets position to bottom center
       this.overlay.addEventListener("dblclick", (e) => {
-        if (e.target.closest(".vimi-sub-word")) return;
+        if (e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase, .vimi-pop-chip")) return;
         e.stopPropagation();
         this.overlay.style.top = "auto";
         this.overlay.style.bottom = "50px";
@@ -1032,29 +1044,21 @@
     }
 
     setupPhraseHighlight() {
-      let isSelecting = false;
       let selectionTimer = null;
 
-      const onOverlayMouseDown = (e) => {
-        if (e.button !== 0) return;
-        isSelecting = true;
-      };
-
       const onMouseUp = () => {
-        if (!isSelecting) return;
-        isSelecting = false;
         clearTimeout(selectionTimer);
         selectionTimer = setTimeout(() => {
           this.checkSelectionAndLookup();
-        }, 35);
+        }, 40);
       };
 
-      this.overlay.addEventListener("mousedown", onOverlayMouseDown);
+      this.overlay.addEventListener("mouseup", onMouseUp);
       window.addEventListener("mouseup", onMouseUp);
 
       this.cleanupPhraseHighlight = () => {
         clearTimeout(selectionTimer);
-        this.overlay.removeEventListener("mousedown", onOverlayMouseDown);
+        this.overlay.removeEventListener("mouseup", onMouseUp);
         window.removeEventListener("mouseup", onMouseUp);
       };
     }
