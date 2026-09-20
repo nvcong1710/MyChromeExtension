@@ -113,8 +113,34 @@
   }
 
   async function translateText(text) {
-    const t = await getTranslator();
-    return t.translate(text);
+    if (!text || !text.trim()) return "";
+    // 1. Try on-device Chrome Translator API if available
+    try {
+      const t = await getTranslator();
+      const out = await t.translate(text);
+      if (out && out.trim()) return out;
+    } catch {
+      // On-device unavailable, downloading, or unsupported — use background fallback
+    }
+
+    // 2. High-speed resilient background service worker fallback
+    try {
+      const res = await new Promise((resolve) => {
+        chrome.runtime.sendMessage(
+          {
+            type: "FUFU_TRANSLATE",
+            text,
+            src: srcLang || "auto",
+            tgt: tgtLang || "vi",
+          },
+          (r) => resolve(r || {})
+        );
+      });
+      if (res && res.translation) return res.translation;
+    } catch (err) {
+      console.warn("[Vimi] Translation fallback error:", err);
+    }
+    return "";
   }
 
   // ── Block selection (full-page translation) ────────────────────────────

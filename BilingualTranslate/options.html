@@ -53,6 +53,25 @@
               <input type="number" id="dailyGoal" min="1" max="200" class="input" />
             </label>
             <div id="saveStatus" class="mt-2 min-h-[18px] text-xs text-brand-600"></div>
+
+            <!-- Offline AI Model Status Card -->
+            <div class="mt-4 border-t border-slate-200 dark:border-slate-700 pt-3" id="optModelCard">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <span class="label mb-0.5">Offline AI Language Model</span>
+                  <div class="flex items-center gap-2">
+                    <span id="optModelBadge" class="chip bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 text-xs">Checking…</span>
+                  </div>
+                </div>
+                <button id="optDownloadModelBtn" class="btn text-xs !py-1.5 hidden">📥 Download Model</button>
+              </div>
+              <p id="optModelDesc" class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">Chrome on-device translation model status.</p>
+              <div id="optModelProgressContainer" class="mt-2 hidden">
+                <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                  <div id="optModelProgressBar" class="bg-brand-600 h-full rounded-full transition-[width]" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="card">

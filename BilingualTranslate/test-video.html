@@ -83,7 +83,7 @@
     </p>
 
     <div class="video-wrapper" id="playerWrapper">
-      <video id="testVideo" controls playsinline loop src="sample.webm">
+      <video id="testVideo" controls playsinline loop muted src="sample.webm">
         <track id="subTrack" src="test-subtitles.vtt" kind="subtitles" srclang="en" label="English" default>
       </video>
     </div>
@@ -129,6 +129,10 @@
           },
           set: async (obj) => {
             Object.assign(mockStorage, obj);
+          },
+          remove: async (keys) => {
+            const arr = Array.isArray(keys) ? keys : [keys];
+            arr.forEach(k => delete mockStorage[k]);
           }
         },
         onChanged: { addListener: () => {} }
