@@ -7,15 +7,12 @@
   let activeCard = null;
   let activeCleanup = null;
   let activeShouldCloseOnOutside = null;
-  let activeCloseTimer = null;
   let interactionVersion = 0;
 
   function close(card = activeCard, reason = "programmatic") {
     if (!card || card !== activeCard) return;
     const cleanup = activeCleanup;
     interactionVersion += 1;
-    clearTimeout(activeCloseTimer);
-    activeCloseTimer = null;
     activeCard = null;
     activeCleanup = null;
     activeShouldCloseOnOutside = null;
@@ -53,10 +50,8 @@
     position,
     badgeText = "",
     onSaved,
-    onSpeak,
     onClose,
     shouldCloseOnOutside,
-    closeAfterSave = true,
   }) {
     close(activeCard, "replace");
     const cardVersion = ++interactionVersion;
@@ -111,12 +106,6 @@
     closeButton.addEventListener("click", () => close(card, "close-button"));
     speakButton.addEventListener("click", () => {
       speak(sourceText, sourceLanguage);
-      if (card === activeCard && cardVersion === interactionVersion) {
-        onSpeak?.(card);
-      }
-      if (card === activeCard && cardVersion === interactionVersion) {
-        close(card, "speak");
-      }
     });
 
     let translatedText = "";
@@ -167,9 +156,6 @@
         if (card !== activeCard || cardVersion !== interactionVersion) return;
         setSavedState();
         onSaved?.();
-        if (closeAfterSave) {
-          activeCloseTimer = setTimeout(() => close(card, "saved"), 900);
-        }
       } catch {
         if (card !== activeCard || cardVersion !== interactionVersion) return;
         saveButton.disabled = false;

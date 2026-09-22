@@ -2778,7 +2778,6 @@
         translate: translateCue,
         mountRoot,
         badgeText: typeBadge,
-        closeAfterSave: false,
         position: (card) => {
           const gap = 8;
           const left = Math.max(gap, Math.min(rect.left, window.innerWidth - card.offsetWidth - gap));
@@ -2794,18 +2793,6 @@
           savedVocabSet.add(term.toLowerCase());
           targetSpan?.classList?.add("vimi-sub-saved");
           this.highlightSavedWords();
-          this.resetTranslationInteraction({
-            reason: "saved",
-            resumeVideo: true,
-            expectedSessionId: sessionId,
-          });
-        },
-        onSpeak: () => {
-          this.resetTranslationInteraction({
-            reason: "speak",
-            resumeVideo: true,
-            expectedSessionId: sessionId,
-          });
         },
         shouldCloseOnOutside: (event) => {
           if (this.overlay.contains(event.target) || this.video.contains(event.target)) return false;
