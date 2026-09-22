@@ -1040,20 +1040,6 @@
     return null;
   }
 
-  // Get display category name for arbitrary phrase text
-  function getPhraseType(phraseText) {
-    if (!phraseText) return "Phrase";
-    const cleanStr = phraseText.trim().toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-    const words = cleanStr.split(/[\s-]+/).filter(Boolean);
-    if (words.length <= 1) return "";
-    const exact = words.join(" ");
-    const vLemma = [VERB_LEMMAS[words[0]] || words[0], ...words.slice(1)].join(" ");
-    const nUnplural = [...words.slice(0, -1), unpluralize(words[words.length - 1])].join(" ");
-    const match = findPhraseMatch(exact, vLemma, nUnplural, "");
-    if (match) return match.type;
-    return "Phrase";
-  }
-
   // Clean WebVTT and HTML tags from subtitle cues
   function cleanCueText(raw) {
     if (!raw) return "";
@@ -1255,20 +1241,34 @@
       this.boundTimeUpdate = this.onTimeUpdate.bind(this);
       this.boundPause = () => this.cancelStickyClear();
       this.boundPlay = () => {
+        this.resetTranslationInteraction({ reason: "video-play" });
         if (this.currentCueText) this.scheduleStickyClear(6000);
       };
-      this.boundEnded = () => this.handleCueClear();
+      this.boundEnded = () => {
+        this.resetTranslationInteraction({ reason: "video-ended" });
+        this.handleCueClear();
+      };
       this.debounceTimer = null;
       this.translateDebounceTimer = null;
       this.stickyClearTimer = null;
-      this.wasPausedByHover = false;
       this.badgeHasDragged = false;
       this.badgeJustDragged = false;
       this.cleanupBadgeDrag = null;
       this.cleanupOverlayDrag = null;
       this.justHighlightedPhrase = false;
       this.lastClickedWordSpan = null;
+      this.activeTranslationTarget = null;
+      this.activeTranslationCard = null;
+      this.translationSessionId = 0;
+      this.isResettingTranslation = false;
+      this.hoverPausedByExtension = false;
+      this.translationPauseLocked = false;
+      this.translationPausedByExtension = false;
+      this.cleanupHoverPause = null;
+      this.cleanupPlayerInteraction = null;
       this.cleanupPhraseHighlight = null;
+      this.phraseSelectionTimer = null;
+      this.phraseClickSuppressionTimer = null;
       this.boundResize = null;
 
       this.initUI();
@@ -1343,6 +1343,7 @@
       this.mountToContainer();
       this.setupDraggable();
       this.setupHoverPause();
+      this.setupPlayerInteraction();
       this.setupPhraseHighlight();
       this.loadSavedPositions();
     }
@@ -1782,14 +1783,14 @@
       }
       this.overlay.addEventListener("pointerdown", (e) => {
         // Only allow overlay background drag if user holds Alt key
-        if (e.altKey && !e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase, .vimi-pop-chip")) {
+        if (e.altKey && !e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase")) {
           onOverlayPointerDown(e);
         }
       });
 
       // Double-click drag handle or overlay resets position to bottom center
       this.overlay.addEventListener("dblclick", (e) => {
-        if (e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase, .vimi-pop-chip")) return;
+        if (e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase")) return;
         e.stopPropagation();
         this.overlay.style.top = "auto";
         this.overlay.style.bottom = "50px";
@@ -1970,40 +1971,168 @@
     }
 
     setupHoverPause() {
-      this.overlay.addEventListener("mouseenter", () => {
-        if (!cfg.videoSubAutoPause) return;
-        if (!this.video.paused) {
-          this.wasPausedByHover = true;
-          this.video.pause();
-        }
-      });
+      const onPointerEnter = () => this.pauseForStudyHover();
+      const onPointerLeave = () => this.resumeAfterStudyHover();
+      this.overlay.addEventListener("pointerenter", onPointerEnter);
+      this.overlay.addEventListener("pointerleave", onPointerLeave);
+      this.cleanupHoverPause = () => {
+        this.overlay.removeEventListener("pointerenter", onPointerEnter);
+        this.overlay.removeEventListener("pointerleave", onPointerLeave);
+      };
+    }
 
-      this.overlay.addEventListener("mouseleave", () => {
-        if (!cfg.videoSubAutoPause) return;
-        if (this.wasPausedByHover) {
-          this.wasPausedByHover = false;
-          this.video.play().catch(() => {});
+    pauseForStudyHover() {
+      if (!cfg.videoSubAutoPause || this.translationPauseLocked || this.hoverPausedByExtension) return;
+      if (!this.video.paused) {
+        this.video.pause();
+        this.hoverPausedByExtension = true;
+      }
+    }
+
+    resumeAfterStudyHover() {
+      if (this.translationPauseLocked || !this.hoverPausedByExtension) return;
+      this.hoverPausedByExtension = false;
+      if (this.video.paused && !this.video.ended) this.video.play().catch(() => {});
+    }
+
+    lockTranslationPause() {
+      if (this.translationPauseLocked) return;
+      this.translationPauseLocked = true;
+
+      // Study Mode already owns this pause, so transfer that ownership to the
+      // translation lock instead of mistaking it for a user-paused video.
+      if (this.hoverPausedByExtension) {
+        this.hoverPausedByExtension = false;
+        this.translationPausedByExtension = true;
+      } else if (!this.video.paused) {
+        this.video.pause();
+        this.translationPausedByExtension = true;
+      } else {
+        this.translationPausedByExtension = false;
+      }
+    }
+
+    releaseTranslationPause({ resume = false } = {}) {
+      const shouldResume = resume && this.translationPausedByExtension;
+      this.translationPauseLocked = false;
+      this.translationPausedByExtension = false;
+      this.hoverPausedByExtension = false;
+      if (shouldResume && this.video.paused && !this.video.ended) {
+        this.video.play().catch(() => {});
+      }
+    }
+
+    setupPlayerInteraction() {
+      const onPlayerPointerDown = (event) => {
+        if (!this.hasActiveTranslationInteraction()) return;
+        if (
+          this.overlay.contains(event.target) ||
+          this.activeTranslationCard?.contains(event.target) ||
+          this.badge.contains(event.target) ||
+          this.menu.contains(event.target)
+        ) return;
+
+        // Do not stop or cancel this event: the player remains responsible for
+        // its native play/pause behavior after translation state is released.
+        this.resetTranslationInteraction({ reason: "video-interaction" });
+      };
+
+      const interactionRoot = this.container !== document.body ? this.container : this.video;
+      interactionRoot.addEventListener("pointerdown", onPlayerPointerDown, true);
+      this.cleanupPlayerInteraction = () => {
+        interactionRoot.removeEventListener("pointerdown", onPlayerPointerDown, true);
+      };
+    }
+
+    hasActiveTranslationInteraction() {
+      return !!(
+        this.activeTranslationCard ||
+        this.activeTranslationTarget ||
+        this.translationPauseLocked
+      );
+    }
+
+    setActiveTranslationTarget(targetElement, text, type) {
+      this.activeTranslationTarget?.element?.classList?.remove("vimi-sub-active");
+      const element = targetElement?.classList ? targetElement : null;
+      this.activeTranslationTarget = { element, text, type: type || "" };
+      element?.classList.add("vimi-sub-active");
+    }
+
+    clearActiveTranslationTarget() {
+      this.activeTranslationTarget?.element?.classList?.remove("vimi-sub-active");
+      this.activeTranslationTarget = null;
+    }
+
+    clearSubtitleSelection() {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return;
+      const anchor = selection.anchorNode;
+      const focus = selection.focusNode;
+      if (
+        (anchor && this.overlay.contains(anchor)) ||
+        (focus && this.overlay.contains(focus))
+      ) {
+        selection.removeAllRanges();
+      }
+    }
+
+    resetTranslationInteraction({
+      reason = "programmatic",
+      resumeVideo = false,
+      preservePause = false,
+      closeCard = true,
+      expectedSessionId = null,
+    } = {}) {
+      if (expectedSessionId !== null && expectedSessionId !== this.translationSessionId) {
+        return false;
+      }
+
+      const card = this.activeTranslationCard;
+      const hadInteraction = this.hasActiveTranslationInteraction();
+      this.translationSessionId += 1;
+      this.activeTranslationCard = null;
+      this.clearActiveTranslationTarget();
+      this.lastClickedWordSpan = null;
+      this.justHighlightedPhrase = false;
+      clearTimeout(this.phraseSelectionTimer);
+      clearTimeout(this.phraseClickSuppressionTimer);
+      this.phraseSelectionTimer = null;
+      this.phraseClickSuppressionTimer = null;
+      this.clearSubtitleSelection();
+
+      if (card && closeCard && !this.isResettingTranslation) {
+        this.isResettingTranslation = true;
+        try {
+          self.VimiTranslationCard.close(card, reason);
+        } finally {
+          this.isResettingTranslation = false;
         }
-      });
+      }
+
+      if (!preservePause && (hadInteraction || this.translationPauseLocked)) {
+        this.releaseTranslationPause({ resume: resumeVideo });
+      }
+      return hadInteraction;
     }
 
     setupPhraseHighlight() {
-      let selectionTimer = null;
-
       const onMouseUp = () => {
-        clearTimeout(selectionTimer);
-        selectionTimer = setTimeout(() => {
+        clearTimeout(this.phraseSelectionTimer);
+        this.phraseSelectionTimer = setTimeout(() => {
+          this.phraseSelectionTimer = null;
           this.checkSelectionAndLookup();
         }, 40);
       };
 
       this.overlay.addEventListener("mouseup", onMouseUp);
-      window.addEventListener("mouseup", onMouseUp);
 
       this.cleanupPhraseHighlight = () => {
-        clearTimeout(selectionTimer);
+        clearTimeout(this.phraseSelectionTimer);
+        clearTimeout(this.phraseClickSuppressionTimer);
+        this.phraseSelectionTimer = null;
+        this.phraseClickSuppressionTimer = null;
         this.overlay.removeEventListener("mouseup", onMouseUp);
-        window.removeEventListener("mouseup", onMouseUp);
       };
     }
 
@@ -2031,7 +2160,9 @@
 
         // Suppress single-word click
         this.justHighlightedPhrase = true;
-        setTimeout(() => {
+        clearTimeout(this.phraseClickSuppressionTimer);
+        this.phraseClickSuppressionTimer = setTimeout(() => {
+          this.phraseClickSuppressionTimer = null;
           this.justHighlightedPhrase = false;
         }, 350);
 
@@ -2454,6 +2585,12 @@
 
     renderWordTokens(container, text) {
       if (container.dataset.renderedText === text) return;
+      if (
+        this.activeTranslationTarget?.element &&
+        container.contains(this.activeTranslationTarget.element)
+      ) {
+        this.resetTranslationInteraction({ reason: "subtitle-rerender" });
+      }
       container.dataset.renderedText = text;
       container.innerHTML = "";
 
@@ -2532,7 +2669,7 @@
               const sel = window.getSelection();
               if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) return;
               this.lastClickedWordSpan = phraseSpan;
-              this.handleWordClick(phraseDisplay, text, phraseSpan, match.type);
+              this.handleWordClick(phraseDisplay, text, phraseSpan);
             });
 
             container.appendChild(phraseSpan);
@@ -2618,80 +2755,74 @@
       });
     }
 
-    async handleWordClick(term, context, targetSpan, explicitType) {
+    async handleWordClick(term, context, targetSpan) {
       if (!term) return;
-      if (!this.video.paused) {
-        this.video.pause();
-      }
-
-      // Remove any existing lookup popups
-      document.querySelectorAll("#vimi-sub-lookup-pop").forEach((p) => p.remove());
-
+      this.resetTranslationInteraction({
+        reason: "replace",
+        preservePause: true,
+      });
+      this.lockTranslationPause();
       const isPhrase = term.includes(" ") || term.includes("-") || Boolean(targetSpan?.isPhrase);
-      let typeBadge = explicitType || targetSpan?.dataset?.phraseType || targetSpan?.phraseType;
-      if (!typeBadge && isPhrase) {
-        typeBadge = getPhraseType(term);
-      }
-
-      const pop = document.createElement("div");
-      pop.id = "vimi-sub-lookup-pop";
-      pop.style.cssText = `
-        position: absolute; z-index: 2147483647; background: #1e293b; color: #f8fafc;
-        border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 12px 14px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6); font-size: 12px; width: 250px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        text-align: left;
-      `;
-
-      pop.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 8px;">
-          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <b style="font-size: 14px; color: #38bdf8;">${term}</b>
-            ${typeBadge ? `<span class="vimi-pop-chip">${typeBadge}</span>` : ""}
-          </div>
-          <button id="vimiPopClose" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">✕</button>
-        </div>
-        <div id="vimiPopTrans" style="color: #cbd5e1; margin-bottom: 8px;">Translating...</div>
-        <button id="vimiPopSave" style="width: 100%; background: #1a73e8; color: #fff; border: none; border-radius: 6px; padding: 6px; font-weight: 600; cursor: pointer;">
-          ${typeBadge ? `+ Add ${typeBadge} to Vimi Vocab` : (isPhrase ? "+ Add Phrase to Vimi Vocab" : "+ Add to Vimi Vocab")}
-        </button>
-      `;
-
+      const typeBadge = targetSpan?.dataset?.phraseType || targetSpan?.phraseType || (isPhrase ? "Phrase" : "");
+      this.setActiveTranslationTarget(targetSpan, term, typeBadge);
+      const sessionId = this.translationSessionId;
       const rect = targetSpan.getBoundingClientRect();
-      const parentRect = (document.fullscreenElement || this.container).getBoundingClientRect();
-      const popLeft = Math.max(10, Math.min(parentRect.width - 250, rect.left - parentRect.left - 20));
-      const popTop = Math.max(10, rect.top - parentRect.top - 110);
-      pop.style.left = `${popLeft}px`;
-      pop.style.top = `${popTop}px`;
-
-      (document.fullscreenElement || this.container).appendChild(pop);
-
-      pop.querySelector("#vimiPopClose").onclick = () => pop.remove();
-
-      let trans = "";
+      const mountRoot = document.fullscreenElement || document.body;
+      let card = null;
       try {
-        trans = await translateCue(term);
-        pop.querySelector("#vimiPopTrans").textContent = trans;
-      } catch {
-        pop.querySelector("#vimiPopTrans").textContent = "Translation unavailable";
-      }
-
-      pop.querySelector("#vimiPopSave").onclick = async () => {
-        await F.addWord({
-          term: term,
-          translation: trans,
-          src: cfg.src,
-          tgt: cfg.tgt,
-          context: context,
-          url: window.location.href,
+        card = self.VimiTranslationCard.show({
+        sourceText: term,
+        sourceLanguage: cfg.src,
+        targetLanguage: cfg.tgt,
+        context,
+        translate: translateCue,
+        mountRoot,
+        badgeText: typeBadge,
+        position: (card) => {
+          const gap = 8;
+          const left = Math.max(gap, Math.min(rect.left, window.innerWidth - card.offsetWidth - gap));
+          const above = rect.top - card.offsetHeight - gap;
+          const top = above >= gap
+            ? above
+            : Math.min(window.innerHeight - card.offsetHeight - gap, rect.bottom + gap);
+          card.style.left = `${left}px`;
+          card.style.top = `${Math.max(gap, top)}px`;
+        },
+        onSaved: () => {
+          if (sessionId !== this.translationSessionId) return;
+          savedVocabSet.add(term.toLowerCase());
+          targetSpan?.classList?.add("vimi-sub-saved");
+          this.highlightSavedWords();
+        },
+        shouldCloseOnOutside: (event) => {
+          if (this.overlay.contains(event.target) || this.video.contains(event.target)) return false;
+          if (this.container !== document.body && this.container.contains(event.target)) return false;
+          return true;
+        },
+        onClose: (_closedCard, reason) => {
+          if (this.isResettingTranslation || sessionId !== this.translationSessionId) return;
+          this.resetTranslationInteraction({
+            reason,
+            resumeVideo: reason === "close-button",
+            closeCard: false,
+            expectedSessionId: sessionId,
+          });
+        },
         });
-        savedVocabSet.add(term.toLowerCase());
-        if (targetSpan.classList) targetSpan.classList.add("vimi-sub-saved");
-        this.highlightSavedWords();
-        pop.querySelector("#vimiPopSave").textContent = "Saved ✓";
-        pop.querySelector("#vimiPopSave").style.background = "#22c55e";
-        setTimeout(() => pop.remove(), 1200);
-      };
+      } catch (error) {
+        this.resetTranslationInteraction({
+          reason: "open-error",
+          resumeVideo: true,
+          expectedSessionId: sessionId,
+        });
+        console.warn("[Vimi] Unable to open subtitle translation:", error);
+        return;
+      }
+      if (sessionId !== this.translationSessionId) {
+        self.VimiTranslationCard.close(card, "stale-open");
+        return;
+      }
+      this.activeTranslationCard = card;
     }
 
     destroy() {
@@ -2700,7 +2831,10 @@
       this.cancelStickyClear();
       if (this.cleanupBadgeDrag) this.cleanupBadgeDrag(true);
       if (this.cleanupOverlayDrag) this.cleanupOverlayDrag(true);
+      if (this.cleanupHoverPause) this.cleanupHoverPause();
+      if (this.cleanupPlayerInteraction) this.cleanupPlayerInteraction();
       if (this.cleanupPhraseHighlight) this.cleanupPhraseHighlight();
+      this.resetTranslationInteraction({ reason: "destroy" });
       if (this.boundResize) window.removeEventListener("resize", this.boundResize);
       if (this.domObserver) this.domObserver.disconnect();
       if (this.activeTrack) {

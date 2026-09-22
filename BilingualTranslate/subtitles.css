@@ -170,12 +170,6 @@
   position: relative;
 }
 
-.vimi-sub-word:hover {
-  background-color: rgba(255, 255, 255, 0.22);
-  color: #ffffff;
-  border-bottom-color: rgba(255, 255, 255, 0.5);
-}
-
 /* Interactive phrasal verbs & multi-word phrases */
 .vimi-sub-phrase {
   display: inline;
@@ -186,12 +180,6 @@
   border-bottom: 2px dashed rgba(56, 189, 248, 0.6);
   transition: color 0.12s ease, background-color 0.12s ease;
   position: relative;
-}
-
-.vimi-sub-phrase:hover {
-  background-color: rgba(56, 189, 248, 0.25);
-  color: #ffffff;
-  border-bottom-color: #38bdf8;
 }
 
 /* Highlight saved words & phrases already in user's Vimi vocabulary */
@@ -206,19 +194,11 @@
   color: #bae6fd;
 }
 
-/* Popup phrase chip */
-.vimi-pop-chip {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 1px 6px;
-  border-radius: 9999px;
-  background: rgba(56, 189, 248, 0.2);
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  vertical-align: middle;
+.vimi-sub-word:hover,
+.vimi-sub-phrase:hover {
+  color: #ffffff;
+  background-color: rgba(56, 189, 248, 0.25);
+  border-bottom-color: #38bdf8;
 }
 
 /* Floating Video Control Badge */
@@ -450,4 +430,13 @@ video::cue {
   color: transparent !important;
   font-size: 0px !important;
   pointer-events: none !important;
+}
+
+/* The word whose shared translation card is open remains visibly selected. */
+.vimi-sub-word.vimi-sub-active,
+.vimi-sub-phrase.vimi-sub-active {
+  color: #ffffff;
+  background-color: rgba(14, 165, 233, 0.38);
+  border-bottom-color: #7dd3fc;
+  border-bottom-style: solid;
 }
