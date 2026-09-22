@@ -148,6 +148,7 @@
 
   // ── Block selection (full-page translation) ────────────────────────────
   function hasSkippedAncestor(el) {
+    if (el.closest?.('[data-bt-translatable="true"]')) return false;
     for (let n = el.parentElement; n; n = n.parentElement) {
       if (SKIP_ANCESTORS.has(n.tagName)) return true;
       if (n.isContentEditable) return true;
@@ -473,8 +474,9 @@
       }
       const node = sel.anchorNode;
       const host = node && node.nodeType === 3 ? node.parentElement : node;
-      if (host && (host.closest(".vimi-translation-card, .vimi-sub-overlay, input, textarea, [contenteditable]"))) {
-        return;
+      if (host) {
+        if (host.closest(".vimi-translation-card, .vimi-sub-overlay, input, textarea")) return;
+        if (host.closest("[contenteditable]") && !host.closest('[data-bt-translatable="true"]')) return;
       }
       const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
