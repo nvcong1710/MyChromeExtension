@@ -16,11 +16,137 @@
 // ==========================================================================
 
 (() => {
-  if (window.__vimiSubtitlesLoaded) return;
-  window.__vimiSubtitlesLoaded = true;
+  const previousInstance = window.__vimiSubtitlesInstance;
+  try {
+    if (previousInstance?.isAlive?.()) return;
+    previousInstance?.destroy?.();
+  } catch {}
 
   const F = self.FuFu;
+  const TranslationCard = window.VimiTranslationCard;
   const HAS_LETTER = /\p{L}/u;
+  const activeControllers = new Map();
+  let subtitleRuntimeActive = true;
+  let videoObserver = null;
+  let domReadyHandler = null;
+  let storageChangeHandler = null;
+  const reportedApiErrors = new Set();
+  const instanceHandle = {
+    isAlive: () => subtitleRuntimeActive && isExtensionContextValid(),
+    destroy: () => shutdownStaleSubtitleInstance(),
+  };
+  window.__vimiSubtitlesInstance = instanceHandle;
+  window.__vimiSubtitlesLoaded = true;
+
+  function isExtensionContextValid() {
+    try {
+      return !!chrome?.runtime?.id;
+    } catch {
+      return false;
+    }
+  }
+
+  function isContextInvalidatedError(error) {
+    return /extension context invalidated/i.test(String(error?.message || error || ""));
+  }
+
+  function shutdownStaleSubtitleInstance() {
+    if (!subtitleRuntimeActive) return;
+    subtitleRuntimeActive = false;
+    videoObserver?.disconnect();
+    videoObserver = null;
+    if (domReadyHandler) {
+      document.removeEventListener("DOMContentLoaded", domReadyHandler);
+      domReadyHandler = null;
+    }
+    if (storageChangeHandler && isExtensionContextValid()) {
+      try { chrome.storage.onChanged.removeListener(storageChangeHandler); } catch {}
+    }
+    storageChangeHandler = null;
+    for (const controller of activeControllers.values()) controller.destroy();
+    activeControllers.clear();
+    if (window.__vimiSubtitlesInstance === instanceHandle) {
+      window.__vimiSubtitlesInstance = null;
+      window.__vimiSubtitlesLoaded = false;
+    }
+  }
+
+  function ensureExtensionContext() {
+    if (!subtitleRuntimeActive) return false;
+    if (isExtensionContextValid()) return true;
+    shutdownStaleSubtitleInstance();
+    return false;
+  }
+
+  function handleExtensionApiError(operation, error) {
+    if (isContextInvalidatedError(error) || !isExtensionContextValid()) {
+      shutdownStaleSubtitleInstance();
+      return true;
+    }
+    const signature = `${operation}:${String(error?.message || error || "unknown")}`;
+    if (!reportedApiErrors.has(signature)) {
+      reportedApiErrors.add(signature);
+      console.error(`[Vimi] ${operation} failed:`, error);
+    }
+    return false;
+  }
+
+  async function safeStorageGet(keys) {
+    if (!ensureExtensionContext()) return null;
+    try {
+      return await chrome.storage.local.get(keys);
+    } catch (error) {
+      handleExtensionApiError("storage read", error);
+      return null;
+    }
+  }
+
+  async function safeStorageSet(values) {
+    if (!ensureExtensionContext()) return false;
+    try {
+      await chrome.storage.local.set(values);
+      return true;
+    } catch (error) {
+      handleExtensionApiError("storage write", error);
+      return false;
+    }
+  }
+
+  async function safeStorageRemove(keys) {
+    if (!ensureExtensionContext()) return false;
+    try {
+      await chrome.storage.local.remove(keys);
+      return true;
+    } catch (error) {
+      handleExtensionApiError("storage remove", error);
+      return false;
+    }
+  }
+
+  async function safeSetConfig(patch) {
+    if (!ensureExtensionContext()) return false;
+    try {
+      await F.setConfig(patch);
+      return ensureExtensionContext();
+    } catch (error) {
+      handleExtensionApiError("config update", error);
+      return false;
+    }
+  }
+
+  async function safeRuntimeMessage(message) {
+    if (!ensureExtensionContext()) return null;
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (error) {
+      if (!handleExtensionApiError("runtime message", error)) {
+        // A missing receiver or translation failure is recoverable; the caller
+        // can fall back without disabling the subtitle controller.
+        return null;
+      }
+      return null;
+    }
+  }
 
   // Verb inflection lemmas for matching phrasal verbs across tenses
   const VERB_LEMMAS = {
@@ -1089,9 +1215,12 @@
   const cueCache = new Map(); // LRU translation cache
 
   async function refreshConfig() {
+    if (!ensureExtensionContext()) return;
     try {
       cfg = Object.assign(cfg, await F.getConfig());
+      if (!ensureExtensionContext()) return;
       const vocabList = await F.getVocab();
+      if (!ensureExtensionContext()) return;
       savedVocabSet = new Set(
         vocabList.map((w) => (w.term || "").trim().toLowerCase()).filter(Boolean)
       );
@@ -1099,34 +1228,44 @@
       for (const ctrl of activeControllers.values()) {
         ctrl.applyConfig();
       }
-    } catch {}
+    } catch (error) {
+      handleExtensionApiError("config refresh", error);
+    }
   }
 
   async function refreshSavedVocabMarks() {
+    if (!ensureExtensionContext()) return;
     try {
       const vocabList = await F.getVocab();
+      if (!ensureExtensionContext()) return;
       savedVocabSet = new Set(
         vocabList.map((w) => (w.term || "").trim().toLowerCase()).filter(Boolean)
       );
       for (const ctrl of activeControllers.values()) {
         ctrl.highlightSavedWords();
       }
-    } catch {}
+    } catch (error) {
+      handleExtensionApiError("vocabulary refresh", error);
+    }
   }
 
-  if (F && F.getConfig) {
-    F.getConfig().then(refreshConfig).catch(() => {});
-  }
-  if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === "local") {
-        if (changes.fufuConfig) {
-          refreshConfig().catch(() => {});
-        } else if (changes.fufuVocab) {
-          refreshSavedVocabMarks().catch(() => {});
-        }
+  refreshConfig();
+  storageChangeHandler = (changes, area) => {
+    if (!ensureExtensionContext()) return;
+    if (area === "local") {
+      if (changes.fufuConfig) {
+        refreshConfig();
+      } else if (changes.fufuVocab) {
+        refreshSavedVocabMarks();
       }
-    });
+    }
+  };
+  if (ensureExtensionContext()) {
+    try {
+      chrome.storage.onChanged.addListener(storageChangeHandler);
+    } catch (error) {
+      handleExtensionApiError("storage change listener registration", error);
+    }
   }
 
   // ── Translation Pipeline ──────────────────────────────────────────────────
@@ -1154,6 +1293,7 @@
   }
 
   async function translateCue(text) {
+    if (!ensureExtensionContext()) return text;
     const key = `${cfg.src}:${cfg.tgt}:${text}`;
     if (cueCache.has(key)) return cueCache.get(key);
 
@@ -1164,8 +1304,7 @@
     } catch {
       // Fallback to background service worker translation
       try {
-        if (!chrome?.runtime?.id) throw new Error("Extension context invalidated");
-        const res = await chrome.runtime.sendMessage({
+        const res = await safeRuntimeMessage({
           type: "FUFU_TRANSLATE",
           text,
           src: cfg.src || "auto",
@@ -1174,8 +1313,14 @@
         if (res?.translation) {
           translated = res.translation;
         }
-      } catch {}
+      } catch (error) {
+        if (!isContextInvalidatedError(error)) {
+          console.warn("[Vimi] Subtitle translation fallback failed:", error);
+        }
+      }
     }
+
+    if (!ensureExtensionContext()) return text;
 
     if (translated) {
       if (cueCache.size > 800) {
@@ -1261,7 +1406,12 @@
       this.debounceTimer = null;
       this.translateDebounceTimer = null;
       this.stickyClearTimer = null;
-      this.wasPausedByHover = false;
+      this.activeWord = null;
+      this.translationCard = null;
+      this.hoverPausedByExtension = false;
+      this.translationPauseLocked = false;
+      this.translationPausedByExtension = false;
+      this.replacingTranslationCard = false;
       this.badgeHasDragged = false;
       this.badgeJustDragged = false;
       this.cleanupBadgeDrag = null;
@@ -1270,6 +1420,14 @@
       this.lastClickedWordSpan = null;
       this.cleanupPhraseHighlight = null;
       this.boundResize = null;
+      this.boundPlayerInteraction = this.handlePlayerInteraction.bind(this);
+      this.boundDocumentClick = null;
+      this.boundFullscreenChange = null;
+      this.boundDragOver = null;
+      this.boundDrop = null;
+      this.boundTrackAdded = null;
+      this.parentObserver = null;
+      this.destroyed = false;
 
       this.initUI();
       this.attachEvents();
@@ -1420,36 +1578,41 @@
     bindMenuEvents() {
       const toggleBtn = this.menu.querySelector("#vimiSubToggle");
       toggleBtn?.addEventListener("click", () => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         cfg.videoSubEnabled = !cfg.videoSubEnabled;
-        F.setConfig({ videoSubEnabled: cfg.videoSubEnabled });
+        safeSetConfig({ videoSubEnabled: cfg.videoSubEnabled });
         this.applyConfig();
       });
 
       this.menu.querySelectorAll("[data-layout]").forEach((btn) => {
         btn.addEventListener("click", () => {
+          if (!ensureExtensionContext() || this.destroyed) return;
           cfg.videoSubLayout = btn.dataset.layout;
-          F.setConfig({ videoSubLayout: cfg.videoSubLayout });
+          safeSetConfig({ videoSubLayout: cfg.videoSubLayout });
           this.applyConfig();
         });
       });
 
       this.menu.querySelectorAll("[data-size]").forEach((btn) => {
         btn.addEventListener("click", () => {
+          if (!ensureExtensionContext() || this.destroyed) return;
           cfg.videoSubSize = btn.dataset.size;
-          F.setConfig({ videoSubSize: cfg.videoSubSize });
+          safeSetConfig({ videoSubSize: cfg.videoSubSize });
           this.applyConfig();
         });
       });
 
       const pauseBtn = this.menu.querySelector("#vimiSubPauseToggle");
       pauseBtn?.addEventListener("click", () => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         cfg.videoSubAutoPause = !cfg.videoSubAutoPause;
-        F.setConfig({ videoSubAutoPause: cfg.videoSubAutoPause });
+        safeSetConfig({ videoSubAutoPause: cfg.videoSubAutoPause });
         this.applyConfig();
       });
 
       const trackSelect = this.menu.querySelector("#vimiSubTrackSelect");
       trackSelect?.addEventListener("change", (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         const val = e.target.value;
         if (val === "auto") {
           this.activeTrack = null;
@@ -1462,21 +1625,25 @@
 
       const resetBtn = this.menu.querySelector("#vimiResetPositions");
       resetBtn?.addEventListener("click", () => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         this.resetPositions();
         this.showToast("Subtitles & CC badge reset to default positions");
       });
 
       const loadFileBtn = this.menu.querySelector("#vimiLoadSubFile");
       loadFileBtn?.addEventListener("click", () => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         this.fileInput.click();
       });
     }
 
     handleFileSelect(e) {
+      if (!ensureExtensionContext() || this.destroyed) return;
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (evt) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         const text = evt.target?.result;
         if (typeof text === "string") {
           const cues = parseSubtitles(text);
@@ -1508,6 +1675,10 @@
     }
 
     applyConfig() {
+      if (!cfg.videoSubAutoPause && this.hoverPausedByExtension) {
+        this.resumeAfterStudyHover();
+      }
+
       // Toggle overlay visibility
       if (!cfg.videoSubEnabled) {
         this.overlay.classList.add("vimi-sub-hidden");
@@ -1582,7 +1753,7 @@
       this.badge.style.transform = "none";
 
       try {
-        chrome.storage.local.remove(["vimiSubOverlayPos", "vimiSubBadgePos"]);
+        safeStorageRemove(["vimiSubOverlayPos", "vimiSubBadgePos"]);
       } catch {}
 
       this.positionMenu();
@@ -1590,10 +1761,12 @@
 
     async loadSavedPositions() {
       try {
-        const { vimiSubOverlayPos, vimiSubBadgePos } = await chrome.storage.local.get([
+        const positions = await safeStorageGet([
           "vimiSubOverlayPos",
           "vimiSubBadgePos",
         ]);
+        if (!positions || this.destroyed) return;
+        const { vimiSubOverlayPos, vimiSubBadgePos } = positions;
         const target = document.fullscreenElement || this.container;
         const parentRect = target.getBoundingClientRect();
         if (parentRect.width <= 0 || parentRect.height <= 0) return;
@@ -1621,7 +1794,9 @@
           this.badge.style.left = `${leftPx}px`;
           this.badge.style.top = `${topPx}px`;
         }
-      } catch {}
+      } catch (error) {
+        handleExtensionApiError("saved subtitle position load", error);
+      }
     }
 
     setupDraggable() {
@@ -1680,12 +1855,13 @@
           if (pRect.width > 0 && pRect.height > 0) {
             const xPercent = (curLeft / pRect.width) * 100;
             const yPercent = (curTop / pRect.height) * 100;
-            chrome.storage.local.set({ vimiSubOverlayPos: { x: xPercent, y: yPercent } });
+            safeStorageSet({ vimiSubOverlayPos: { x: xPercent, y: yPercent } });
           }
         }
       };
 
       const onOverlayPointerMove = (ev) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (overlayActivePointerId === null || ev.pointerId !== overlayActivePointerId) return;
         const dx = ev.clientX - overlayStartX;
         const dy = ev.clientY - overlayStartY;
@@ -1743,6 +1919,7 @@
       };
 
       const onOverlayPointerDown = (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (e.pointerType === "mouse" && e.button !== 0) return; // only left click
         if (e.isPrimary === false) return;
 
@@ -1790,13 +1967,14 @@
       // Double-click drag handle or overlay resets position to bottom center
       this.overlay.addEventListener("dblclick", (e) => {
         if (e.target.closest?.(".vimi-sub-word, .vimi-sub-phrase, .vimi-pop-chip")) return;
+        if (!ensureExtensionContext() || this.destroyed) return;
         e.stopPropagation();
         this.overlay.style.top = "auto";
         this.overlay.style.bottom = "50px";
         this.overlay.style.left = "50%";
         this.overlay.style.right = "auto";
         this.overlay.style.transform = "translateX(-50%)";
-        chrome.storage.local.remove("vimiSubOverlayPos");
+        safeStorageRemove("vimiSubOverlayPos");
         this.showToast("Subtitles reset to bottom center");
       });
 
@@ -1854,13 +2032,14 @@
           if (pRect.width > 0 && pRect.height > 0) {
             const xPercent = (curLeft / pRect.width) * 100;
             const yPercent = (curTop / pRect.height) * 100;
-            chrome.storage.local.set({ vimiSubBadgePos: { x: xPercent, y: yPercent } });
+            safeStorageSet({ vimiSubBadgePos: { x: xPercent, y: yPercent } });
           }
           this.positionMenu();
         }
       };
 
       const onBadgePointerMove = (ev) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (badgeActivePointerId === null || ev.pointerId !== badgeActivePointerId) return;
         const dx = ev.clientX - badgeStartX;
         const dy = ev.clientY - badgeStartY;
@@ -1919,6 +2098,7 @@
       };
 
       const onBadgePointerDown = (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (e.pointerType === "mouse" && e.button !== 0) return;
         if (e.isPrimary === false) return;
 
@@ -1957,13 +2137,14 @@
 
       // Double click on badge resets to top-right corner
       this.badge.addEventListener("dblclick", (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         e.stopPropagation();
         this.badge.style.top = "14px";
         this.badge.style.right = "14px";
         this.badge.style.left = "auto";
         this.badge.style.bottom = "auto";
         this.badge.style.transform = "none";
-        chrome.storage.local.remove("vimiSubBadgePos");
+        safeStorageRemove("vimiSubBadgePos");
         this.showToast("CC badge reset to top right");
         this.positionMenu();
       });
@@ -1971,19 +2152,11 @@
 
     setupHoverPause() {
       this.overlay.addEventListener("mouseenter", () => {
-        if (!cfg.videoSubAutoPause) return;
-        if (!this.video.paused) {
-          this.wasPausedByHover = true;
-          this.video.pause();
-        }
+        this.pauseForStudyHover();
       });
 
       this.overlay.addEventListener("mouseleave", () => {
-        if (!cfg.videoSubAutoPause) return;
-        if (this.wasPausedByHover) {
-          this.wasPausedByHover = false;
-          this.video.play().catch(() => {});
-        }
+        this.resumeAfterStudyHover();
       });
     }
 
@@ -2042,7 +2215,90 @@
       } catch {}
     }
 
+    pauseForStudyHover() {
+      if (!ensureExtensionContext() || this.destroyed) return;
+      if (!cfg.videoSubAutoPause || this.translationPauseLocked) return;
+      if (!this.video.paused) {
+        this.hoverPausedByExtension = true;
+        this.video.pause();
+      }
+    }
+
+    resumeAfterStudyHover() {
+      if (!ensureExtensionContext() || this.destroyed) return;
+      if (!this.hoverPausedByExtension || this.translationPauseLocked) return;
+      this.hoverPausedByExtension = false;
+      if (this.video.paused && !this.video.ended) {
+        this.video.play().catch(() => {});
+      }
+    }
+
+    lockTranslationPause() {
+      if (this.translationPauseLocked) return;
+      this.translationPauseLocked = true;
+
+      // If Study Mode paused a playing video, transfer that resume ownership
+      // to the translation lock instead of treating it as a user pause.
+      if (this.hoverPausedByExtension) {
+        this.translationPausedByExtension = true;
+        this.hoverPausedByExtension = false;
+      } else if (!this.video.paused) {
+        this.translationPausedByExtension = true;
+        this.video.pause();
+      } else {
+        this.translationPausedByExtension = false;
+      }
+    }
+
+    releaseTranslationPause({ resume }) {
+      if (!this.translationPauseLocked) return;
+      const shouldResume = resume && this.translationPausedByExtension;
+      this.translationPauseLocked = false;
+      this.translationPausedByExtension = false;
+      if (shouldResume && this.video.paused && !this.video.ended) {
+        this.video.play().catch(() => {});
+      }
+    }
+
+    handlePlayerInteraction(event) {
+      if (!ensureExtensionContext() || this.destroyed) return;
+      if (!this.translationPauseLocked) return;
+      if (
+        this.overlay.contains(event.target) ||
+        this.badge.contains(event.target) ||
+        this.menu.contains(event.target) ||
+        event.target.closest?.(".vimi-translation-card")
+      ) {
+        return;
+      }
+
+      // Cleanup only. The event is deliberately left untouched so the player
+      // can perform its native play/pause behavior.
+      if (this.translationCard) {
+        TranslationCard.close(this.translationCard, "video-interaction", event);
+      } else {
+        this.clearActiveWord();
+        this.releaseTranslationPause({ resume: false });
+      }
+    }
+
+    setActiveWord(span) {
+      if (this.activeWord && this.activeWord !== span) {
+        this.activeWord.classList?.remove("vimi-sub-active");
+      }
+      this.activeWord = span;
+      span?.classList?.add("vimi-sub-active");
+    }
+
+    clearActiveWord(span) {
+      if (span && this.activeWord !== span) return;
+      this.activeWord?.classList?.remove("vimi-sub-active");
+      this.activeWord = null;
+    }
+
     attachEvents() {
+      this.container.addEventListener("click", this.boundPlayerInteraction, true);
+
       // Toggle Settings Menu
       this.badge.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -2059,26 +2315,30 @@
         }
       });
 
-      document.addEventListener("click", (e) => {
+      this.boundDocumentClick = (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (!this.menu.contains(e.target) && !this.badge.contains(e.target)) {
           this.menu.classList.add("vimi-menu-hidden");
           this.badge.classList.remove("vimi-sub-badge-active");
         }
-      });
+      };
+      document.addEventListener("click", this.boundDocumentClick);
 
       // Window resize / resolution adjustment
       this.boundResize = () => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         this.loadSavedPositions();
         this.positionMenu();
       };
       window.addEventListener("resize", this.boundResize);
 
       // Fullscreen change handling
-      const handleFullscreen = () => {
+      this.boundFullscreenChange = () => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         this.mountToContainer();
       };
-      document.addEventListener("fullscreenchange", handleFullscreen);
-      document.addEventListener("webkitfullscreenchange", handleFullscreen);
+      document.addEventListener("fullscreenchange", this.boundFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", this.boundFullscreenChange);
 
       // Continuous timeupdate & state synchronization
       this.video.addEventListener("timeupdate", this.boundTimeUpdate);
@@ -2089,16 +2349,19 @@
 
       // Drag & drop subtitle file directly onto video
       const dropZone = this.container;
-      dropZone.addEventListener("dragover", (e) => {
+      this.boundDragOver = (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = "copy";
-      });
-      dropZone.addEventListener("drop", (e) => {
+      };
+      this.boundDrop = (e) => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         e.preventDefault();
         const file = e.dataTransfer.files?.[0];
         if (file && (file.name.endsWith(".srt") || file.name.endsWith(".vtt"))) {
           const reader = new FileReader();
           reader.onload = (evt) => {
+            if (!ensureExtensionContext() || this.destroyed) return;
             const cues = parseSubtitles(evt.target?.result || "");
             if (cues.length > 0) {
               this.externalCues = cues;
@@ -2108,7 +2371,9 @@
           };
           reader.readAsText(file);
         }
-      });
+      };
+      dropZone.addEventListener("dragover", this.boundDragOver);
+      dropZone.addEventListener("drop", this.boundDrop);
     }
 
     // ── Subtitle Detection & Extraction ─────────────────────────────────────
@@ -2117,7 +2382,11 @@
       if (this.video.textTracks && this.video.textTracks.length > 0) {
         this.setupTextTracks();
       } else if (this.video.textTracks) {
-        this.video.textTracks.onaddtrack = () => this.setupTextTracks();
+        this.boundTrackAdded = () => {
+          if (!ensureExtensionContext() || this.destroyed) return;
+          this.setupTextTracks();
+        };
+        this.video.textTracks.onaddtrack = this.boundTrackAdded;
       }
 
       // 2. On YouTube, auto-activate captions module if available
@@ -2221,6 +2490,7 @@
       if (this.video.paused) return; // NEVER clear while paused!
       if (this.stickyClearTimer) return;
       this.stickyClearTimer = setTimeout(() => {
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (!this.video.paused) {
           this.handleCueClear();
         }
@@ -2229,6 +2499,7 @@
     }
 
     onNativeCueChange() {
+      if (!ensureExtensionContext() || this.destroyed) return;
       if (!this.activeTrack) return;
       const cues = this.activeTrack.activeCues;
       if (cues && cues.length > 0) {
@@ -2244,6 +2515,7 @@
     }
 
     onTimeUpdate() {
+      if (!ensureExtensionContext() || this.destroyed) return;
       let activeText = "";
 
       // 1. External loaded cues (.srt / .vtt)
@@ -2302,6 +2574,7 @@
         if (this.domObserver) this.domObserver.disconnect();
 
         const processBuffer = () => {
+          if (!ensureExtensionContext() || this.destroyed) return;
           // Extract text from visual lines (YouTube & custom players)
           // Query ONLY top-level visual lines to avoid duplicating text from child segments!
           let collected = [];
@@ -2342,8 +2615,10 @@
         };
 
         this.domObserver = new MutationObserver(() => {
+          if (!ensureExtensionContext() || this.destroyed) return;
           clearTimeout(this.debounceTimer);
           this.debounceTimer = setTimeout(() => {
+            if (!ensureExtensionContext() || this.destroyed) return;
             processBuffer();
           }, 35); // 35ms micro-batching for instant audio-subtitle synchronization!
         });
@@ -2361,14 +2636,17 @@
       if (target) {
         observeContainer(target);
       } else {
-        const parentObserver = new MutationObserver(() => {
+        this.parentObserver?.disconnect();
+        this.parentObserver = new MutationObserver(() => {
+          if (!ensureExtensionContext() || this.destroyed) return;
           const found = findContainer();
           if (found) {
-            parentObserver.disconnect();
+            this.parentObserver?.disconnect();
+            this.parentObserver = null;
             observeContainer(found);
           }
         });
-        parentObserver.observe(this.container || document.body, {
+        this.parentObserver.observe(this.container || document.body, {
           childList: true,
           subtree: true,
         });
@@ -2377,6 +2655,7 @@
 
     // ── Cue Display & Full Sentence Rendering ───────────────────────────────
     async handleNewCue(text) {
+      if (!ensureExtensionContext() || this.destroyed) return;
       if (!text || text === this.currentCueText) return;
       this.cancelStickyClear();
       this.currentCueText = text;
@@ -2398,6 +2677,7 @@
       clearTimeout(this.translateDebounceTimer);
       this.translateDebounceTimer = setTimeout(async () => {
         const trans = await translateCue(text);
+        if (!ensureExtensionContext() || this.destroyed) return;
         if (this.currentCueText === text) {
           this.currentTranslatedText = trans;
           const transEl = this.overlay.querySelector(".vimi-sub-trans");
@@ -2454,6 +2734,10 @@
 
     renderWordTokens(container, text) {
       if (container.dataset.renderedText === text) return;
+      if (this.activeWord instanceof Node && container.contains(this.activeWord)) {
+        if (this.translationCard) TranslationCard.close(this.translationCard);
+        else this.clearActiveWord();
+      }
       container.dataset.renderedText = text;
       container.innerHTML = "";
 
@@ -2619,90 +2903,81 @@
     }
 
     async handleWordClick(term, context, targetSpan, explicitType) {
+      if (!ensureExtensionContext() || this.destroyed) return;
       if (!term) return;
-      if (!this.video.paused) {
-        this.video.pause();
-      }
-
-      // Remove any existing lookup popups
-      document.querySelectorAll("#vimi-sub-lookup-pop").forEach((p) => p.remove());
-
+      this.lockTranslationPause();
+      const rect = targetSpan.getBoundingClientRect();
       const isPhrase = term.includes(" ") || term.includes("-") || Boolean(targetSpan?.isPhrase);
       let typeBadge = explicitType || targetSpan?.dataset?.phraseType || targetSpan?.phraseType;
-      if (!typeBadge && isPhrase) {
-        typeBadge = getPhraseType(term);
-      }
-
-      const pop = document.createElement("div");
-      pop.id = "vimi-sub-lookup-pop";
-      pop.style.cssText = `
-        position: absolute; z-index: 2147483647; background: #1e293b; color: #f8fafc;
-        border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 12px; padding: 12px 14px;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6); font-size: 12px; width: 250px;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        text-align: left;
-      `;
-
-      pop.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; gap: 8px;">
-          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-            <b style="font-size: 14px; color: #38bdf8;">${term}</b>
-            ${typeBadge ? `<span class="vimi-pop-chip">${typeBadge}</span>` : ""}
-          </div>
-          <button id="vimiPopClose" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px;">✕</button>
-        </div>
-        <div id="vimiPopTrans" style="color: #cbd5e1; margin-bottom: 8px;">Translating...</div>
-        <button id="vimiPopSave" style="width: 100%; background: #1a73e8; color: #fff; border: none; border-radius: 6px; padding: 6px; font-weight: 600; cursor: pointer;">
-          ${typeBadge ? `+ Add ${typeBadge} to Vimi Vocab` : (isPhrase ? "+ Add Phrase to Vimi Vocab" : "+ Add to Vimi Vocab")}
-        </button>
-      `;
-
-      const rect = targetSpan.getBoundingClientRect();
-      const parentRect = (document.fullscreenElement || this.container).getBoundingClientRect();
-      const popLeft = Math.max(10, Math.min(parentRect.width - 250, rect.left - parentRect.left - 20));
-      const popTop = Math.max(10, rect.top - parentRect.top - 110);
-      pop.style.left = `${popLeft}px`;
-      pop.style.top = `${popTop}px`;
-
-      (document.fullscreenElement || this.container).appendChild(pop);
-
-      pop.querySelector("#vimiPopClose").onclick = () => pop.remove();
-
-      let trans = "";
+      if (!typeBadge && isPhrase) typeBadge = getPhraseType(term);
+      let card = null;
+      this.replacingTranslationCard = true;
       try {
-        trans = await translateCue(term);
-        pop.querySelector("#vimiPopTrans").textContent = trans;
-      } catch {
-        pop.querySelector("#vimiPopTrans").textContent = "Translation unavailable";
-      }
-
-      pop.querySelector("#vimiPopSave").onclick = async () => {
-        await F.addWord({
-          term: term,
-          translation: trans,
-          src: cfg.src,
-          tgt: cfg.tgt,
-          context: context,
+        card = TranslationCard.show({
+          sourceText: term,
+          sourceLanguage: cfg.src,
+          targetLanguage: cfg.tgt,
+          context,
+          badgeText: typeBadge || (isPhrase ? "Phrase" : ""),
           url: window.location.href,
+          anchorRect: rect,
+          align: "center",
+          mountRoot: document.fullscreenElement || document.body,
+          translate: translateCue,
+          closeAfterSave: false,
+          ensureContext: ensureExtensionContext,
+          shouldIgnoreOutsidePointer: (event) =>
+            !!event.target.closest?.(".vimi-sub-word, .vimi-sub-phrase") && this.overlay.contains(event.target),
+          onSaved: () => {
+            savedVocabSet.add(term.toLowerCase());
+            targetSpan.classList?.add("vimi-sub-saved");
+            this.highlightSavedWords();
+          },
+          onClose: (reason) => {
+            if (this.translationCard === card) this.translationCard = null;
+            this.clearActiveWord(targetSpan);
+            if (this.replacingTranslationCard) return;
+            this.releaseTranslationPause({
+              resume: reason === "close-button" || reason === "destroy",
+            });
+          },
         });
-        savedVocabSet.add(term.toLowerCase());
-        if (targetSpan.classList) targetSpan.classList.add("vimi-sub-saved");
-        this.highlightSavedWords();
-        pop.querySelector("#vimiPopSave").textContent = "Saved ✓";
-        pop.querySelector("#vimiPopSave").style.background = "#22c55e";
-        setTimeout(() => pop.remove(), 1200);
-      };
+      } catch (error) {
+        this.releaseTranslationPause({ resume: true });
+        handleExtensionApiError("translation popup open", error);
+        return;
+      } finally {
+        this.replacingTranslationCard = false;
+      }
+      this.translationCard = card;
+      this.setActiveWord(targetSpan);
     }
 
     destroy() {
+      if (this.destroyed) return;
+      this.destroyed = true;
+      const shouldResumeHoverPause = this.hoverPausedByExtension;
+      this.hoverPausedByExtension = false;
       clearTimeout(this.debounceTimer);
       clearTimeout(this.translateDebounceTimer);
+      if (this.translationCard) TranslationCard.close(this.translationCard, "destroy");
+      else this.releaseTranslationPause({ resume: true });
+      if (shouldResumeHoverPause && this.video.paused && !this.video.ended) {
+        this.video.play().catch(() => {});
+      }
+      this.clearActiveWord();
       this.cancelStickyClear();
       if (this.cleanupBadgeDrag) this.cleanupBadgeDrag(true);
       if (this.cleanupOverlayDrag) this.cleanupOverlayDrag(true);
       if (this.cleanupPhraseHighlight) this.cleanupPhraseHighlight();
       if (this.boundResize) window.removeEventListener("resize", this.boundResize);
+      if (this.boundDocumentClick) document.removeEventListener("click", this.boundDocumentClick);
+      if (this.boundFullscreenChange) {
+        document.removeEventListener("fullscreenchange", this.boundFullscreenChange);
+        document.removeEventListener("webkitfullscreenchange", this.boundFullscreenChange);
+      }
       if (this.domObserver) this.domObserver.disconnect();
+      if (this.parentObserver) this.parentObserver.disconnect();
       if (this.activeTrack) {
         this.activeTrack.removeEventListener("cuechange", this.boundCueChange);
       }
@@ -2711,6 +2986,12 @@
       this.video.removeEventListener("pause", this.boundPause);
       this.video.removeEventListener("play", this.boundPlay);
       this.video.removeEventListener("ended", this.boundEnded);
+      this.container.removeEventListener("click", this.boundPlayerInteraction, true);
+      if (this.boundDragOver) this.container.removeEventListener("dragover", this.boundDragOver);
+      if (this.boundDrop) this.container.removeEventListener("drop", this.boundDrop);
+      if (this.video.textTracks && this.video.textTracks.onaddtrack === this.boundTrackAdded) {
+        this.video.textTracks.onaddtrack = null;
+      }
       this.overlay?.remove();
       this.badge?.remove();
       this.menu?.remove();
@@ -2719,8 +3000,6 @@
   }
 
   // ── Global Video Scanner & Lifecycle Manager ─────────────────────────────
-  const activeControllers = new Map();
-
   function isEligibleVideo(v) {
     if (!v) return false;
     // Check if video is visible and not an audio-only / tracking pixel
@@ -2730,6 +3009,7 @@
   }
 
   function registerVideo(video) {
+    if (!ensureExtensionContext()) return;
     if (activeControllers.has(video)) return;
     if (!isEligibleVideo(video)) return;
 
@@ -2742,11 +3022,13 @@
   }
 
   function scanVideos() {
+    if (!ensureExtensionContext()) return;
     document.querySelectorAll("video").forEach(registerVideo);
   }
 
   // Watch for newly mounted videos (e.g. SPAs, course lectures, dynamic video players)
-  const videoObserver = new MutationObserver((mutations) => {
+  videoObserver = new MutationObserver((mutations) => {
+    if (!ensureExtensionContext()) return;
     let shouldScan = false;
     for (const m of mutations) {
       if (m.addedNodes && m.addedNodes.length > 0) {
@@ -2780,14 +3062,20 @@
     if (shouldScan) scanVideos();
   });
 
-  videoObserver.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
+  if (ensureExtensionContext()) {
+    videoObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  }
 
   // Initial scan
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", scanVideos);
+    domReadyHandler = () => {
+      domReadyHandler = null;
+      scanVideos();
+    };
+    document.addEventListener("DOMContentLoaded", domReadyHandler);
   } else {
     scanVideos();
   }
