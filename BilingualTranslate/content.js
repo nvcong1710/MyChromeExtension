@@ -21,7 +21,7 @@
     "p, li, h1, h2, h3, h4, h5, h6, blockquote, dd, figcaption, td, div";
   const SKIP_ANCESTORS = new Set([
     "SCRIPT", "STYLE", "NOSCRIPT", "CODE", "PRE", "KBD", "SAMP",
-    "TEXTAREA", "INPUT", "SELECT", "BUTTON", "SVG",
+    "TEXTAREA", "INPUT", "SELECT", "BUTTON", "SVG", "NAV", "ASIDE",
   ]);
   const MIN_LEN = 12;
   const HAS_LETTER = /\p{L}{2,}/u;
@@ -149,6 +149,7 @@
   // ── Block selection (full-page translation) ────────────────────────────
   function hasSkippedAncestor(el) {
     if (el.closest?.('[data-bt-translatable="true"]')) return false;
+    if (el.closest?.('[translate="no"], [data-no-translate="true"], .notranslate')) return true;
     for (let n = el.parentElement; n; n = n.parentElement) {
       if (SKIP_ANCESTORS.has(n.tagName)) return true;
       if (n.isContentEditable) return true;
@@ -205,6 +206,9 @@
   function isCandidate(el) {
     if (el.hasAttribute(DONE_ATTR)) return false;
     if (el.classList.contains(TRANS_CLASS)) return false;
+    if (el.getAttribute?.("translate") === "no") return false;
+    if (el.hasAttribute?.("data-no-translate")) return false;
+    if (el.classList?.contains("notranslate")) return false;
     if (SKIP_ANCESTORS.has(el.tagName)) return false;
     if (containsTextBlock(el)) return false; // leaf-only (ignores empty wrappers)
     if (hasSkippedAncestor(el)) return false;
@@ -500,7 +504,7 @@
   // for their translation (click to flip back). Pure DOM, no translator calls.
   const MAX_SPRINKLE = 12; // cap inline swaps per page so reading stays readable
   const VOCAB_SKIP_SEL =
-    ".vimi-translation-card, #bt-badge, #bt-toast, .bt-translation, .vimi-vocab, input, textarea, [contenteditable]";
+    ".vimi-translation-card, #bt-badge, #bt-toast, .bt-translation, .vimi-vocab, input, textarea, [contenteditable], [translate='no'], [data-no-translate='true'], .notranslate, nav, aside";
   let vocabIndex = null; // { regex, map: lowercased term -> word }
   let sprinkledIds = new Set();
   let sprinkledCount = 0;
