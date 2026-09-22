@@ -152,5 +152,9 @@ $("test").addEventListener("click", () => {
   window.close();
 });
 $("opts").addEventListener("click", () => chrome.runtime.openOptionsPage());
+$("openDoc2Notion")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  chrome.tabs.create({ url: "https://doc2-notion.vercel.app/" });
+});
 
 init();
