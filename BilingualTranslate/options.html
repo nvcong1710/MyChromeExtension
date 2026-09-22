@@ -18,7 +18,7 @@
 
     <div class="flex items-stretch" style="min-height: calc(100vh - 72px)">
       <!-- Left nav -->
-      <nav id="nav" class="w-56 shrink-0 border-r border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
+      <nav id="nav" class="flex flex-col w-56 shrink-0 border-r border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800/50">
         <button data-tab="dashboard" class="nav-btn">📊 Dashboard</button>
         <button data-tab="general" class="nav-btn">⚙️ General</button>
         <button data-tab="videosub" class="nav-btn">🎬 Video Subtitles</button>
@@ -26,6 +26,18 @@
         <button data-tab="learning" class="nav-btn">🔔 Reminders &amp; Tests</button>
         <button data-tab="vocab" class="nav-btn">📚 Vocabulary</button>
         <button data-tab="decks" class="nav-btn">🗂️ Flashcards</button>
+
+        <div class="mt-auto pt-3 border-t border-slate-200 dark:border-slate-700">
+          <a href="https://doc2-notion.vercel.app/" target="_blank" rel="noopener noreferrer"
+            class="flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-slate-700/50 transition"
+            title="Read and translate local PDF, DOCX, XLSX, and Markdown files">
+            <span class="flex items-center gap-1.5">
+              <span>📄</span>
+              <span>Doc2Notion</span>
+            </span>
+            <span class="text-[10px] opacity-70">↗</span>
+          </a>
+        </div>
       </nav>
 
       <!-- Content -->
@@ -157,6 +169,26 @@
               <input type="file" id="restoreFile" accept="application/json" hidden />
             </div>
             <div id="backupStatus" class="mt-2 min-h-[16px] text-xs text-brand-600"></div>
+          </section>
+
+          <section class="card">
+            <div class="flex items-center gap-2.5">
+              <span class="text-2xl">📄</span>
+              <div>
+                <h2 class="text-[15px] font-bold">Translate Local Files — Doc2Notion</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Translate local PDFs, Word, Excel, and Markdown files.</p>
+              </div>
+            </div>
+            <p class="mt-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              Cannot translate local files directly in Chrome? No worries! Use our free web companion <b>Doc2Notion</b> to open and read PDFs, Word (.docx), Excel (.xlsx/.csv), and Markdown files in a Notion-style interface with Vimi Bilingual translation and bilingual export support.
+            </p>
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+              <a href="https://doc2-notion.vercel.app/" target="_blank" rel="noopener noreferrer" class="btn btn-primary text-xs inline-flex items-center gap-1.5">
+                <span>Open Doc2Notion</span>
+                <span class="text-[10px]">↗</span>
+              </a>
+              <span class="text-[11px] text-slate-500 dark:text-slate-400 font-mono">https://doc2-notion.vercel.app/</span>
+            </div>
           </section>
           </div>
 

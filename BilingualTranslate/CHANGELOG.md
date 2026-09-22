@@ -1,5 +1,14 @@
 # Vimi Bilingual — Changelog
 
+## v2.1.1
+
+### New — Local Document Translation with Doc2Notion
+- Added companion web tool recommendation for translating local desktop files:
+  **Doc2Notion** (https://doc2-notion.vercel.app/). Read and translate local PDFs,
+  Word (.docx), Excel (.xlsx/.csv), and Markdown documents bilingually with full
+  Notion-style reading canvas and bilingual export support.
+- Compatibility improvements for custom reader canvases (`data-bt-translatable`).
+
 ## v2.1.0
 
 Turns everyday browsing into review and makes your data portable. Still
