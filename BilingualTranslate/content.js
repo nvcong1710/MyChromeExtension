@@ -125,6 +125,7 @@
 
     // 2. High-speed resilient background service worker fallback
     try {
+      if (!chrome?.runtime?.id) return "";
       const res = await new Promise((resolve) => {
         chrome.runtime.sendMessage(
           {
@@ -138,7 +139,9 @@
       });
       if (res && res.translation) return res.translation;
     } catch (err) {
-      console.warn("[Vimi] Translation fallback error:", err);
+      if (!String(err?.message || "").includes("Extension context invalidated")) {
+        console.warn("[Vimi] Translation fallback error:", err);
+      }
     }
     return "";
   }
