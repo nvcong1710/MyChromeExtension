@@ -39,6 +39,7 @@
       ],
       "js": [
         "store.js",
+        "translation-card.js",
         "content.js",
         "subtitles.js",
         "mascot.js"

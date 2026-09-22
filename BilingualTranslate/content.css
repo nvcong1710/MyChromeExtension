@@ -123,64 +123,96 @@ html.vimi-reveal *:hover + .bt-translation {
   }
 }
 
-/* ── Select-to-save popup ─────────────────────────────────────────────── */
-#fufu-sel-pop {
-  position: absolute;
+/* ── Shared translation card (selection + video subtitles) ────────────────── */
+.vimi-translation-card {
+  position: fixed;
   z-index: 2147483647;
   min-width: 150px;
-  max-width: 280px;
-  padding: 10px 12px;
-  background: #ffffff;
-  color: #202124;
-  border: 1px solid #e0e0e0;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: #1e293b;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
   font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  text-align: left;
   animation: bt-fade-in 0.15s ease both;
 }
-#fufu-sel-pop .fufu-sp-term {
+.vimi-translation-source {
+  padding-right: 22px;
   font-weight: 700;
   font-size: 14px;
-  color: #1a73e8;
-  word-break: break-word;
+  color: #38bdf8;
+  overflow-wrap: anywhere;
 }
-#fufu-sel-pop .fufu-sp-trans {
-  margin: 4px 0 10px;
-  color: #3c4043;
-  word-break: break-word;
-}
-#fufu-sel-pop .fufu-sp-actions {
+.vimi-translation-source-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.vimi-translation-result {
+  margin: 4px 0 10px;
+  color: #cbd5e1;
+  overflow-wrap: anywhere;
+}
+.vimi-translation-result.is-loading { color: #94a3b8; }
+.vimi-translation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
-#fufu-sel-pop button {
+.vimi-translation-card button {
+  appearance: none;
   font: inherit;
   cursor: pointer;
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
-  background: #f6f8fc;
-  padding: 5px 8px;
-  color: #202124;
+  transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
 }
-#fufu-sel-pop .fufu-sp-save {
-  flex: 1;
+.vimi-close-button {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 19px !important;
+  line-height: 1;
+}
+.vimi-close-button:hover { background: rgba(255, 255, 255, 0.1); color: #f8fafc; }
+.vimi-speak-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 1;
+  border: 1px solid #475569;
+  background: #334155;
+  color: #f8fafc;
+}
+.vimi-speak-button:hover { background: #475569; border-color: #64748b; }
+.vimi-save-button {
+  min-width: 68px;
+  padding: 6px 12px;
   border: none;
   background: #1a73e8;
   color: #fff;
   font-weight: 600;
 }
-#fufu-sel-pop .fufu-sp-save:hover { background: #1765cc; }
-#fufu-sel-pop .fufu-sp-save.saved { background: #1e8e3e; }
-#fufu-sel-pop .fufu-sp-speak { line-height: 1; }
-
-@media (prefers-color-scheme: dark) {
-  #fufu-sel-pop {
-    background: #2a2b2e;
-    color: #e8eaed;
-    border-color: #3c4043;
-  }
-  #fufu-sel-pop .fufu-sp-term { color: #8ab4f8; }
-  #fufu-sel-pop .fufu-sp-trans { color: #cdd1d6; }
-  #fufu-sel-pop button { background: #303134; color: #e8eaed; border-color: #3c4043; }
-}
+.vimi-save-button:hover:not(:disabled) { background: #1765cc; }
+.vimi-save-button.is-saved { background: #1e8e3e; }
+.vimi-save-button.is-loading { opacity: 0.75; cursor: wait; }
+.vimi-save-button:disabled { cursor: default; }
+.vimi-translation-card button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }

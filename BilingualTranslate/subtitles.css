@@ -221,6 +221,16 @@
   vertical-align: middle;
 }
 
+/* A clicked word stays visually selected for the lifetime of its lookup card. */
+.vimi-sub-word.vimi-sub-active,
+.vimi-sub-word.vimi-sub-active:hover,
+.vimi-sub-phrase.vimi-sub-active,
+.vimi-sub-phrase.vimi-sub-active:hover {
+  background-color: rgba(56, 189, 248, 0.3);
+  color: #e0f2fe;
+  border-bottom-color: #38bdf8;
+}
+
 /* Floating Video Control Badge */
 .vimi-sub-badge {
   position: absolute;

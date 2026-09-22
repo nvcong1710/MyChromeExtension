@@ -151,7 +151,7 @@
     for (let n = el.parentElement; n; n = n.parentElement) {
       if (SKIP_ANCESTORS.has(n.tagName)) return true;
       if (n.isContentEditable) return true;
-      if (n.id === "fufu-sel-pop" || n.id === "bt-badge") return true;
+      if (n.closest?.(".vimi-translation-card") || n.id === "bt-badge") return true;
     }
     return false;
   }
@@ -394,7 +394,7 @@
   }
 
   // ── Select-to-save vocabulary ──────────────────────────────────────────
-  let selPop = null;
+  const TranslationCard = window.VimiTranslationCard;
 
   function sentenceAround(range) {
     // Use the nearest block element's text as the context sentence.
@@ -413,78 +413,31 @@
   }
 
   function removeSelPop() {
-    if (selPop) { selPop.remove(); selPop = null; }
+    TranslationCard.close();
   }
 
-  function speak(text, lang) {
-    try {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang;
-      speechSynthesis.cancel();
-      speechSynthesis.speak(u);
-    } catch {}
-  }
-
-  async function showSelPopup(term, rect, context) {
-    removeSelPop();
-    const pop = document.createElement("div");
-    pop.id = "fufu-sel-pop";
-    pop.innerHTML = `
-      <div class="fufu-sp-term"></div>
-      <div class="fufu-sp-trans">…</div>
-      <div class="fufu-sp-actions">
-        <button class="fufu-sp-speak" title="Pronounce">🔊</button>
-        <button class="fufu-sp-save">Save</button>
-      </div>`;
-    pop.querySelector(".fufu-sp-term").textContent = term;
-    document.body.appendChild(pop);
-    selPop = pop;
-
-    // Position above the selection, clamped to the viewport.
-    const top = window.scrollY + rect.top - pop.offsetHeight - 8;
-    const left = Math.max(
-      8,
-      Math.min(
-        window.scrollX + rect.left,
-        window.scrollX + window.innerWidth - pop.offsetWidth - 8
-      )
-    );
-    pop.style.top = `${top < window.scrollY ? window.scrollY + rect.bottom + 8 : top}px`;
-    pop.style.left = `${left}px`;
-
-    const transEl = pop.querySelector(".fufu-sp-trans");
-    let translation = "";
-    try {
-      translation = await translateText(term);
-      transEl.textContent = translation || "(no translation)";
-    } catch {
-      transEl.textContent = "(translation unavailable)";
-    }
-
-    pop.querySelector(".fufu-sp-speak").addEventListener("click", (e) => {
-      e.stopPropagation();
-      speak(term, srcLang);
-    });
-    pop.querySelector(".fufu-sp-save").addEventListener("click", async (e) => {
-      e.stopPropagation();
-      await F.addWord({
-        term,
-        translation,
-        src: srcLang,
-        tgt: tgtLang,
-        context,
-        url: location.href,
-      });
-      const btn = pop.querySelector(".fufu-sp-save");
-      btn.textContent = "Saved ✓";
-      btn.classList.add("saved");
-      vimiEvent({ pose: "happy", say: "Saved! 📚", ttl: 2500 });
-      setTimeout(removeSelPop, 900);
+  function showSelPopup(term, rect, context) {
+    TranslationCard.show({
+      sourceText: term,
+      sourceLanguage: srcLang,
+      targetLanguage: tgtLang,
+      context,
+      url: location.href,
+      anchorRect: rect,
+      mountRoot: document.fullscreenElement || document.body,
+      translate: translateText,
+      onSaved: () => vimiEvent({ pose: "happy", say: "Saved! 📚", ttl: 2500 }),
     });
   }
 
   document.addEventListener("mouseup", (e) => {
-    if (selPop && selPop.contains(e.target)) return; // click inside popup
+    if (TranslationCard.contains(e.target)) return; // click inside popup
+    if (e.target.closest?.(".vimi-sub-word")) {
+      const subtitleSelection = window.getSelection();
+      if (!subtitleSelection || subtitleSelection.isCollapsed || !subtitleSelection.toString().trim()) {
+        return; // a simple subtitle click owns its word popup
+      }
+    }
     setTimeout(() => {
       const sel = window.getSelection();
       const term = sel ? sel.toString().trim() : "";
@@ -495,7 +448,7 @@
       }
       const node = sel.anchorNode;
       const host = node && node.nodeType === 3 ? node.parentElement : node;
-      if (host && (host.closest("#fufu-sel-pop, input, textarea, [contenteditable]"))) {
+      if (host && (host.closest(".vimi-translation-card, input, textarea, [contenteditable]"))) {
         return;
       }
       const range = sel.getRangeAt(0);
@@ -507,9 +460,8 @@
   });
 
   document.addEventListener("mousedown", (e) => {
-    if (selPop && !selPop.contains(e.target)) removeSelPop();
+    if (!TranslationCard.contains(e.target)) removeSelPop();
   });
-  document.addEventListener("scroll", removeSelPop, { passive: true });
 
   // ── Reading aids: highlight saved words + inline "sprinkle" learning ────
   // Both walk the page's text for words you've already saved. Highlight mode
@@ -517,7 +469,7 @@
   // for their translation (click to flip back). Pure DOM, no translator calls.
   const MAX_SPRINKLE = 12; // cap inline swaps per page so reading stays readable
   const VOCAB_SKIP_SEL =
-    "#fufu-sel-pop, #bt-badge, #bt-toast, .bt-translation, .vimi-vocab, input, textarea, [contenteditable]";
+    ".vimi-translation-card, #bt-badge, #bt-toast, .bt-translation, .vimi-vocab, input, textarea, [contenteditable]";
   let vocabIndex = null; // { regex, map: lowercased term -> word }
   let sprinkledIds = new Set();
   let sprinkledCount = 0;
