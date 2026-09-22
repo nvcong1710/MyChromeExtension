@@ -49,7 +49,7 @@ async function checkModelStatus() {
   }
 
   try {
-    const availability = await Translator.availability({ sourceLanguage: src, targetLanguage: tgt });
+    const availability = await Translator.availability({ sourceLanguage: src, targetLanguage: tgt }).catch(() => "unavailable");
     if (availability === "available" || availability === "readily") {
       badge.textContent = "Ready ✓";
       badge.className = "chip bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";

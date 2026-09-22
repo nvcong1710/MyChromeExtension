@@ -286,23 +286,27 @@
   async function prepare() {
     try {
       if (typeof Translator === "undefined") {
-        fail("This browser doesn't support the Translator API. Needs Chrome/Edge 138+.");
+        startTranslating();
         return;
       }
       const opts = { sourceLanguage: srcLang, targetLanguage: tgtLang };
-      const availability = await Translator.availability(opts);
-      if (!enabled) return;
-      if (availability === "unavailable") {
-        fail(`The pair ${pair()} isn't supported on this device.`);
-        return;
+      let availability = "unavailable";
+      try {
+        availability = await Translator.availability(opts).catch(() => "unavailable");
+      } catch {
+        availability = "unavailable";
       }
+      if (!enabled) return;
       if (availability === "available" || availability === "downloading") {
         startTranslating();
-      } else {
+      } else if (availability === "after-download" || availability === "downloadable") {
         setBadgeAction(`Click to download model & translate ${pair()}`, startTranslating);
+      } else {
+        // On-device unavailable on this device/browser — seamlessly use background cloud fallback!
+        startTranslating();
       }
-    } catch (err) {
-      reportError(err);
+    } catch {
+      if (enabled) startTranslating();
     }
   }
 
@@ -311,7 +315,11 @@
     started = true;
     try {
       setBadgeText(`Preparing ${pair()}…`);
-      await getTranslator();
+      try {
+        await getTranslator();
+      } catch {
+        // On-device translator unavailable; translateText will automatically use cloud fallback
+      }
       if (!enabled) return;
       setBadgeText(pair());
       vimiEvent({ pose: "think", say: "Translating this page…", ttl: 3500 });

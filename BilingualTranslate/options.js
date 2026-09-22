@@ -100,13 +100,13 @@ async function loadSettings() {
     b.classList.toggle("active", b.dataset.subsize === (cfg.videoSubSize || "md"));
   });
   showNextTest(cfg);
-  checkOptModelStatus();
+  checkOptModelStatus().catch(() => {});
 }
 
 // ── Offline AI Model Check + Download in Options ─────────────────────────────
 async function checkOptModelStatus() {
-  const src = $("src").value;
-  const tgt = $("tgt").value;
+  const src = $("src")?.value || "en";
+  const tgt = $("tgt")?.value || "vi";
   const badge = $("optModelBadge");
   const desc = $("optModelDesc");
   const btn = $("optDownloadModelBtn");
@@ -123,7 +123,7 @@ async function checkOptModelStatus() {
   }
 
   try {
-    const availability = await Translator.availability({ sourceLanguage: src, targetLanguage: tgt });
+    const availability = await Translator.availability({ sourceLanguage: src, targetLanguage: tgt }).catch(() => "unavailable");
     if (availability === "available" || availability === "readily") {
       badge.textContent = "Ready ✓";
       badge.className = "chip bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
