@@ -111,7 +111,17 @@ async function init() {
     power.checked = !!hosts[host];
   } else {
     document.body.classList.add("bt-disabled");
-    $("host").textContent = "Not available on this page";
+    const isLocal = tab?.url?.startsWith("file:");
+    if (isLocal) {
+      $("host").innerHTML = 'Local file &bull; <a id="localFileLink" href="#" class="font-semibold text-brand-600 underline">Open in Doc2Notion ↗</a>';
+      $("localFileLink")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        chrome.tabs.create({ url: "https://doc2-notion.vercel.app/" });
+        window.close();
+      });
+    } else {
+      $("host").textContent = "Not available on this page";
+    }
     power.disabled = true;
   }
 
@@ -155,6 +165,7 @@ $("opts").addEventListener("click", () => chrome.runtime.openOptionsPage());
 $("openDoc2Notion")?.addEventListener("click", (e) => {
   e.preventDefault();
   chrome.tabs.create({ url: "https://doc2-notion.vercel.app/" });
+  window.close();
 });
 
 init();
