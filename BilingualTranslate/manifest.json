@@ -39,11 +39,13 @@
       ],
       "js": [
         "store.js",
+        "translation-card.js",
         "content.js",
         "subtitles.js",
         "mascot.js"
       ],
       "css": [
+        "translation-card.css",
         "content.css",
         "subtitles.css"
       ],
