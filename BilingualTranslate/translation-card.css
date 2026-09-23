@@ -52,6 +52,20 @@
   font-size: 13px;
 }
 
+.vimi-language-settings-button {
+  width: 24px;
+  height: 24px !important;
+  margin-left: 2px !important;
+  color: #94a3b8;
+  background: transparent;
+  border-color: transparent;
+}
+
+.vimi-language-settings-button svg {
+  width: 14px;
+  height: 14px;
+}
+
 .vimi-translation-body {
   min-height: 0;
   padding: 10px 12px;
@@ -135,6 +149,12 @@
   color: #f8fafc;
   background: rgba(148, 163, 184, 0.18);
   border-color: rgba(148, 163, 184, 0.22);
+}
+
+.vimi-language-settings-button:hover:not(:disabled) {
+  color: #7dd3fc;
+  background: rgba(125, 211, 252, 0.12);
+  border-color: rgba(125, 211, 252, 0.2);
 }
 
 .vimi-icon-button:active:not(:disabled) {

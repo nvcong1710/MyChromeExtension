@@ -13,6 +13,7 @@
 
   const ICONS = Object.freeze({
     close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    languages: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z"/><path d="M3 12h18M12 3c2.2 2.5 3.3 5.5 3.3 9S14.2 18.5 12 21M12 3C9.8 5.5 8.7 8.5 8.7 12S9.8 18.5 12 21"/></svg>',
     volume: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5ZM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
     copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"/></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>',
@@ -148,7 +149,7 @@
 
     const start = (event) => {
       if (gesture || event.isPrimary === false || event.button !== 0) return;
-      if (closeButton.contains(event.target)) return;
+      if (closeButton.contains(event.target) || event.target?.closest?.("button")) return;
       const rect = card.getBoundingClientRect();
       gesture = {
         pointerId: event.pointerId,
@@ -215,6 +216,7 @@
           <span class="vimi-source-code"></span>
           <span class="vimi-language-arrow" aria-hidden="true">→</span>
           <span class="vimi-target-code"></span>
+          <button type="button" class="vimi-icon-button vimi-language-settings-button" title="Change translation languages" aria-label="Change translation languages">${ICONS.languages}</button>
         </div>
         <button type="button" class="vimi-icon-button vimi-close-button" title="Close" aria-label="${longSelection ? "Close translation" : "Close translation popup"}">${ICONS.close}</button>
       </div>
@@ -246,6 +248,7 @@
     );
     const result = card.querySelector(".vimi-translation-result");
     const closeButton = card.querySelector(".vimi-close-button");
+    const languageSettingsButton = card.querySelector(".vimi-language-settings-button");
     const speakButton = card.querySelector(".vimi-speak-button");
     const copyButton = card.querySelector(".vimi-copy-button");
     const saveButton = card.querySelector(".vimi-save-button");
@@ -279,6 +282,10 @@
     reposition();
 
     closeButton.addEventListener("click", () => close(card, "close-button"));
+    languageSettingsButton.addEventListener("click", () => {
+      if (card !== activeCard) return;
+      try { chrome.runtime.sendMessage({ type: "VIMI_OPEN_ACTION_POPUP" }); } catch {}
+    });
     speakButton.addEventListener("click", () => {
       if (card !== activeCard) return;
       speak(sourceText, sourceLanguage, card);

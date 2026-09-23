@@ -1,5 +1,23 @@
 # Vimi Bilingual — Changelog
 
+## v2.1.3
+
+### Improved — Language model controls
+- Show whether the selected translation model is ready, needs downloading, or
+  is unavailable directly in the extension popup.
+- Keep dropdown changes pending until **Apply & refresh** is clicked, preventing
+  the page, selection popup, and video subtitles from using different pairs.
+- Clearly mark language changes that have not yet been applied.
+
+### New — Quick language access
+- Added a language button beside the pair in translation-card headers. It opens
+  the extension popup so the translation languages can be changed quickly.
+
+### Fixed — Runtime stability
+- Refresh cached translators safely when the active language pair changes.
+- Prevent stale translation results from an earlier language pair appearing.
+- Avoid an early mascot lifecycle error while page elements are still loading.
+
 ## v2.1.2
 
 ### Improved — Selection translation

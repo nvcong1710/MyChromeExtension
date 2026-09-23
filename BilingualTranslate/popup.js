@@ -10,9 +10,30 @@ const DOT_CLASS =
   "vm-dot absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-orange-500 text-white text-[10px] leading-4 font-bold text-center";
 const srcSel = $("src");
 const tgtSel = $("tgt");
+const modelStatus = $("modelStatus");
+const modelStatusIcon = $("modelStatusIcon");
+const modelStatusText = $("modelStatusText");
+const modelAction = $("modelAction");
+const modelActionIcon = $("modelActionIcon");
+const modelActionText = $("modelActionText");
+
+const MODEL_ICONS = Object.freeze({
+  check: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>',
+  required: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>',
+  unavailable: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>',
+  spinner: '<svg class="model-spinner" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/></svg>',
+  download: '<svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+});
 
 let tab = null;
 let host = "";
+let modelRequestId = 0;
+let languageChangeId = 0;
+let languageSaveQueue = Promise.resolve();
+let appliedPair = null;
+let languageSelectionDirty = false;
+const modelDownloads = new Map();
 
 function fill(sel) {
   sel.innerHTML = "";
@@ -21,7 +42,8 @@ function fill(sel) {
   for (const [code, name] of F.POPULAR_LANGUAGES) {
     const o = document.createElement("option");
     o.value = code;
-    o.textContent = `${name} (${code})`;
+    o.textContent = `${shortLanguageName(code, name)} (${code})`;
+    o.title = `${name} (${code})`;
     popGroup.appendChild(o);
   }
   sel.appendChild(popGroup);
@@ -31,10 +53,22 @@ function fill(sel) {
   for (const [code, name] of F.LANGUAGES) {
     const o = document.createElement("option");
     o.value = code;
-    o.textContent = `${name} (${code})`;
+    o.textContent = `${shortLanguageName(code, name)} (${code})`;
+    o.title = `${name} (${code})`;
     allGroup.appendChild(o);
   }
   sel.appendChild(allGroup);
+}
+
+function shortLanguageName(code, name) {
+  if (code === "zh") return "Chinese";
+  if (code === "zh-TW" || code === "zh-Hant") return "Chinese Trad.";
+  return name.replace(/\s*\([^)]*\)\s*$/, "");
+}
+
+function syncLanguageTitles() {
+  srcSel.title = srcSel.selectedOptions?.[0]?.title || srcSel.selectedOptions?.[0]?.textContent || "";
+  tgtSel.title = tgtSel.selectedOptions?.[0]?.title || tgtSel.selectedOptions?.[0]?.textContent || "";
 }
 fill(srcSel);
 fill(tgtSel);
@@ -44,8 +78,143 @@ function hostOf(url) {
 }
 
 async function send(type) {
-  if (!tab?.id) return;
-  try { await chrome.tabs.sendMessage(tab.id, { type }); } catch {}
+  if (!tab?.id) return null;
+  try { return await chrome.tabs.sendMessage(tab.id, { type }); } catch { return null; }
+}
+
+function selectedPair() {
+  return { sourceLanguage: srcSel.value, targetLanguage: tgtSel.value };
+}
+
+function pairKey({ sourceLanguage, targetLanguage }) {
+  return `${sourceLanguage}->${targetLanguage}`;
+}
+
+function isCurrentPair(pair) {
+  const current = selectedPair();
+  return current.sourceLanguage === pair.sourceLanguage &&
+    current.targetLanguage === pair.targetLanguage;
+}
+
+function selectedPairNeedsApply() {
+  if (!appliedPair) return languageSelectionDirty;
+  const current = selectedPair();
+  return current.sourceLanguage !== appliedPair.sourceLanguage ||
+    current.targetLanguage !== appliedPair.targetLanguage;
+}
+
+function renderModelState(state) {
+  const states = {
+    checking: { status: "Checking model…", icon: "spinner", tone: "neutral", action: "", disabled: true },
+    ready: { status: "Model ready", icon: "check", tone: "ready", action: "Refresh", actionIcon: "refresh", disabled: false },
+    required: { status: "Model required", icon: "required", tone: "required", action: "Download model", actionIcon: "download", disabled: false },
+    downloading: { status: "Downloading model…", icon: "spinner", tone: "required", action: "Downloading…", actionIcon: "spinner", disabled: true },
+    unavailable: { status: "Model unavailable", icon: "unavailable", tone: "error", action: "", disabled: true },
+    checkFailed: { status: "Model check failed", icon: "unavailable", tone: "error", action: "Retry", actionIcon: "refresh", disabled: false },
+    downloadFailed: { status: "Download failed", icon: "unavailable", tone: "error", action: "Retry", actionIcon: "refresh", disabled: false },
+  };
+  const view = { ...(states[state] || states.unavailable) };
+  const needsApply = state === "ready" && selectedPairNeedsApply();
+  if (needsApply) {
+    view.status = "Changes not applied";
+    view.action = "Apply & refresh";
+    view.tone = "required";
+  }
+  modelStatus.dataset.tone = view.tone;
+  modelStatusIcon.innerHTML = MODEL_ICONS[view.icon] || "";
+  modelStatusText.textContent = view.status;
+  modelActionIcon.innerHTML = MODEL_ICONS[view.actionIcon] || "";
+  modelActionText.textContent = view.action;
+  modelAction.disabled = view.disabled;
+  modelAction.dataset.modelState = state;
+  modelAction.classList.toggle("hidden", !view.action);
+  modelAction.classList.toggle("model-action-download", state === "required" || needsApply);
+}
+
+function stateForAvailability(availability) {
+  if (availability === "available" || availability === "readily") return "ready";
+  if (availability === "downloadable" || availability === "after-download") return "required";
+  if (availability === "downloading") return "downloading";
+  return "unavailable";
+}
+
+async function checkModelStatus() {
+  const requestId = ++modelRequestId;
+  const pair = selectedPair();
+  renderModelState("checking");
+
+  if (typeof Translator === "undefined") {
+    if (requestId === modelRequestId && isCurrentPair(pair)) renderModelState("unavailable");
+    return;
+  }
+
+  try {
+    const availability = await Translator.availability(pair);
+    if (requestId !== modelRequestId || !isCurrentPair(pair)) return;
+    const state = stateForAvailability(availability);
+    if (state === "unavailable" && availability !== "unavailable") {
+      console.warn("[Vimi] Unknown model availability", { ...pair, availability });
+    }
+    renderModelState(state);
+  } catch (error) {
+    if (requestId !== modelRequestId || !isCurrentPair(pair)) return;
+    console.warn("[Vimi] Model availability check failed", { ...pair, error });
+    renderModelState("checkFailed");
+  }
+}
+
+async function applySelectedModel() {
+  const pair = selectedPair();
+  await F.setConfig({ src: pair.sourceLanguage, tgt: pair.targetLanguage });
+  if (!isCurrentPair(pair)) return;
+  const response = await send("BT_RELOAD");
+  if (response?.ok && isCurrentPair(pair)) {
+    appliedPair = { ...pair };
+    languageSelectionDirty = false;
+    renderModelState("ready");
+  }
+}
+
+async function downloadSelectedModel() {
+  if (typeof Translator === "undefined") {
+    renderModelState("unavailable");
+    return;
+  }
+
+  const pair = selectedPair();
+  const key = pairKey(pair);
+  const requestId = ++modelRequestId;
+  renderModelState("downloading");
+
+  try {
+    let download = modelDownloads.get(key);
+    if (!download) {
+      download = (async () => {
+        const translator = await Translator.create({
+          ...pair,
+          monitor(monitor) {
+            monitor.addEventListener("downloadprogress", () => {
+              if (requestId === modelRequestId && isCurrentPair(pair)) {
+                renderModelState("downloading");
+              }
+            });
+          },
+        });
+        translator?.destroy?.();
+      })();
+      modelDownloads.set(key, download);
+      download.then(
+        () => modelDownloads.delete(key),
+        () => modelDownloads.delete(key)
+      );
+    }
+    await download;
+    if (requestId === modelRequestId && isCurrentPair(pair)) renderModelState("ready");
+  } catch (error) {
+    if (requestId !== modelRequestId || !isCurrentPair(pair)) return;
+    console.warn("[Vimi] Model download failed", { ...pair, error });
+    renderModelState("downloadFailed");
+  }
 }
 
 function startOfDay() {
@@ -102,6 +271,8 @@ async function init() {
   const cfg = await F.getConfig();
   srcSel.value = cfg.src || "en";
   tgtSel.value = cfg.tgt || "vi";
+  appliedPair = selectedPair();
+  syncLanguageTitles();
   $("mascot").checked = cfg.mascotEnabled !== false;
   $("videoSub").checked = cfg.videoSubEnabled !== false;
 
@@ -109,13 +280,20 @@ async function init() {
     $("host").textContent = host;
     const hosts = await F.getHosts();
     power.checked = !!hosts[host];
+    const runtimeConfig = await send("BT_GET_CONFIG");
+    if (runtimeConfig?.ok) {
+      appliedPair = {
+        sourceLanguage: runtimeConfig.sourceLanguage,
+        targetLanguage: runtimeConfig.targetLanguage,
+      };
+    }
   } else {
     document.body.classList.add("bt-disabled");
     $("host").textContent = "Not available on this page";
     power.disabled = true;
   }
 
-  await refreshStats();
+  await Promise.all([refreshStats(), checkModelStatus()]);
 }
 
 power.addEventListener("change", () => send("BT_TOGGLE"));
@@ -131,8 +309,16 @@ $("videoSub").addEventListener("change", () => {
 });
 
 async function saveLangs() {
-  await F.setConfig({ src: srcSel.value, tgt: tgtSel.value });
-  if (power.checked) send("BT_RELOAD");
+  const changeId = ++languageChangeId;
+  const pair = selectedPair();
+  languageSelectionDirty = true;
+  syncLanguageTitles();
+  languageSaveQueue = languageSaveQueue
+    .catch(() => {})
+    .then(() => F.setConfig({ src: pair.sourceLanguage, tgt: pair.targetLanguage }));
+  await languageSaveQueue;
+  if (changeId !== languageChangeId || !isCurrentPair(pair)) return;
+  await checkModelStatus();
 }
 srcSel.addEventListener("change", saveLangs);
 tgtSel.addEventListener("change", saveLangs);
@@ -141,6 +327,13 @@ $("swap").addEventListener("click", () => {
   srcSel.value = tgtSel.value;
   tgtSel.value = a;
   saveLangs();
+});
+
+modelAction.addEventListener("click", () => {
+  const state = modelAction.dataset.modelState;
+  if (state === "required") downloadSelectedModel();
+  else if (state === "ready") applySelectedModel();
+  else if (state === "checkFailed" || state === "downloadFailed") checkModelStatus();
 });
 
 $("review").addEventListener("click", () => {

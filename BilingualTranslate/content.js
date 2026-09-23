@@ -47,6 +47,8 @@
   let tgtLang = "vi";
   let transColor = "";
   let translatorPromise = null;
+  let translatorPairKey = "";
+  let translationConfigVersion = 0;
   let io = null;
   let mo = null;
   let scanScheduled = false;
@@ -57,6 +59,49 @@
   let revealMode = false;
 
   const pair = () => `${srcLang}→${tgtLang}`;
+
+  function snapshotTranslationConfig() {
+    return {
+      sourceLanguage: srcLang,
+      targetLanguage: tgtLang,
+      version: translationConfigVersion,
+    };
+  }
+
+  function isCurrentTranslationConfig(config) {
+    return config.version === translationConfigVersion &&
+      config.sourceLanguage === srcLang &&
+      config.targetLanguage === tgtLang;
+  }
+
+  function invalidateTranslator() {
+    const staleTranslator = translatorPromise;
+    translatorPromise = null;
+    translatorPairKey = "";
+    if (staleTranslator) {
+      Promise.resolve(staleTranslator)
+        .then((translator) => translator?.destroy?.())
+        .catch(() => {});
+    }
+  }
+
+  function applyRuntimeConfig(cfg, { closeSelection = true } = {}) {
+    const nextSource = cfg.src || "en";
+    const nextTarget = cfg.tgt || "vi";
+    const pairChanged = nextSource !== srcLang || nextTarget !== tgtLang;
+    srcLang = nextSource;
+    tgtLang = nextTarget;
+    transColor = cfg.transColor || "";
+    highlightSaved = !!cfg.highlightSaved;
+    inlineLearn = !!cfg.inlineLearn;
+    revealMode = !!cfg.revealMode;
+    if (pairChanged) {
+      translationConfigVersion += 1;
+      invalidateTranslator();
+      if (closeSelection) removeSelPop("config-change");
+    }
+    return pairChanged;
+  }
 
   // Notify the Vimi mascot (mascot.js) about app events.
   function vimiEvent(detail) {
@@ -79,51 +124,63 @@
   // Load language config early so select-to-save works before (or without)
   // turning on full-page translation.
   F.getConfig().then((cfg) => {
-    srcLang = cfg.src || "en";
-    tgtLang = cfg.tgt || "vi";
-    transColor = cfg.transColor || "";
-    highlightSaved = !!cfg.highlightSaved;
-    inlineLearn = !!cfg.inlineLearn;
-    revealMode = !!cfg.revealMode;
+    applyRuntimeConfig(cfg, { closeSelection: false });
     applyTransColor();
     applyReadingPrefs();
     refreshVocabFeatures();
   });
 
   // ── Translator engine ─────────────────────────────────────────────────
-  async function getTranslator() {
-    if (translatorPromise) return translatorPromise;
-    translatorPromise = (async () => {
+  async function getTranslator(requestConfig = snapshotTranslationConfig()) {
+    if (!isCurrentTranslationConfig(requestConfig)) throw new Error("STALE_CONFIG");
+    const key = `${requestConfig.sourceLanguage}->${requestConfig.targetLanguage}`;
+    if (translatorPromise && translatorPairKey === key) return translatorPromise;
+    if (translatorPromise) invalidateTranslator();
+
+    const pendingTranslator = (async () => {
       if (typeof Translator === "undefined") throw new Error("NO_API");
-      const opts = { sourceLanguage: srcLang, targetLanguage: tgtLang };
+      const opts = {
+        sourceLanguage: requestConfig.sourceLanguage,
+        targetLanguage: requestConfig.targetLanguage,
+      };
       return Translator.create({
         ...opts,
         monitor(m) {
           m.addEventListener("downloadprogress", (e) => {
             const pct = Math.round((e.loaded || 0) * 100);
-            setBadgeProgress(`Downloading model ${pair()} ${pct}%`);
+            if (isCurrentTranslationConfig(requestConfig)) {
+              setBadgeProgress(`Downloading model ${opts.sourceLanguage}→${opts.targetLanguage} ${pct}%`);
+            }
           });
         },
       });
-    })().catch((err) => {
-      translatorPromise = null; // don't cache failures — allow retry
-      throw err;
+    })();
+    translatorPromise = pendingTranslator;
+    translatorPairKey = key;
+    pendingTranslator.catch(() => {
+      if (translatorPromise === pendingTranslator) {
+        translatorPromise = null; // don't cache failures — allow retry
+        translatorPairKey = "";
+      }
     });
-    return translatorPromise;
+    return pendingTranslator;
   }
 
-  async function translateText(text) {
+  async function translateText(text, requestConfig = snapshotTranslationConfig()) {
     if (!text || !text.trim()) return "";
+    if (!isCurrentTranslationConfig(requestConfig)) return "";
     // 1. Try on-device Chrome Translator API if available
     try {
-      const t = await getTranslator();
+      const t = await getTranslator(requestConfig);
       const out = await t.translate(text);
+      if (!isCurrentTranslationConfig(requestConfig)) return "";
       if (out && out.trim()) return out;
     } catch {
       // On-device unavailable, downloading, or unsupported — use background fallback
     }
 
     // 2. High-speed resilient background service worker fallback
+    if (!isCurrentTranslationConfig(requestConfig)) return "";
     try {
       if (!chrome?.runtime?.id) return "";
       const res = await new Promise((resolve) => {
@@ -131,12 +188,13 @@
           {
             type: "FUFU_TRANSLATE",
             text,
-            src: srcLang || "auto",
-            tgt: tgtLang || "vi",
+            src: requestConfig.sourceLanguage || "auto",
+            tgt: requestConfig.targetLanguage || "vi",
           },
           (r) => resolve(r || {})
         );
       });
+      if (!isCurrentTranslationConfig(requestConfig)) return "";
       if (res && res.translation) return res.translation;
     } catch (err) {
       if (!String(err?.message || "").includes("Extension context invalidated")) {
@@ -148,8 +206,8 @@
 
   // The providers return plain text and may merge paragraph boundaries. Only
   // long selections are translated line by line so real source newlines survive.
-  async function translateLongSelection(text) {
-    if (!/[\r\n]/.test(text)) return translateText(text);
+  async function translateLongSelection(text, requestConfig = snapshotTranslationConfig()) {
+    if (!/[\r\n]/.test(text)) return translateText(text, requestConfig);
     const parts = text.replace(/\r\n?/g, "\n").split(/(\n+)/);
     const lineIndexes = parts.flatMap((part, index) => part.trim() && !part.startsWith("\n") ? [index] : []);
 
@@ -159,7 +217,7 @@
       while (nextLine < lineIndexes.length) {
         const index = lineIndexes[nextLine++];
         const line = parts[index];
-        const translated = await translateText(line.trim());
+        const translated = await translateText(line.trim(), requestConfig);
         if (!translated?.trim()) throw new Error("Translation unavailable");
         const leading = line.match(/^\s*/)[0];
         const trailing = line.match(/\s*$/)[0];
@@ -277,8 +335,9 @@
       return;
     }
     try {
-      const out = await translateText(text);
-      if (!enabled) return;
+      const requestConfig = snapshotTranslationConfig();
+      const out = await translateText(text, requestConfig);
+      if (!enabled || !isCurrentTranslationConfig(requestConfig)) return;
       if (!out || out.trim() === text.trim()) {
         el.setAttribute(DONE_ATTR, "skip");
         return;
@@ -308,44 +367,51 @@
 
   // ── Enable / disable full-page translation ─────────────────────────────
   async function prepare() {
+    const requestConfig = snapshotTranslationConfig();
     try {
       if (typeof Translator === "undefined") {
-        startTranslating();
+        startTranslating(requestConfig);
         return;
       }
-      const opts = { sourceLanguage: srcLang, targetLanguage: tgtLang };
+      const opts = {
+        sourceLanguage: requestConfig.sourceLanguage,
+        targetLanguage: requestConfig.targetLanguage,
+      };
       let availability = "unavailable";
       try {
         availability = await Translator.availability(opts).catch(() => "unavailable");
       } catch {
         availability = "unavailable";
       }
-      if (!enabled) return;
+      if (!enabled || !isCurrentTranslationConfig(requestConfig)) return;
       if (availability === "available" || availability === "downloading") {
-        startTranslating();
+        startTranslating(requestConfig);
       } else if (availability === "after-download" || availability === "downloadable") {
-        setBadgeAction(`Click to download model & translate ${pair()}`, startTranslating);
+        setBadgeAction(
+          `Click to download model & translate ${requestConfig.sourceLanguage}→${requestConfig.targetLanguage}`,
+          () => startTranslating(requestConfig)
+        );
       } else {
         // On-device unavailable on this device/browser — seamlessly use background cloud fallback!
-        startTranslating();
+        startTranslating(requestConfig);
       }
     } catch {
       if (enabled) startTranslating();
     }
   }
 
-  async function startTranslating() {
-    if (started || !enabled) return;
+  async function startTranslating(requestConfig = snapshotTranslationConfig()) {
+    if (started || !enabled || !isCurrentTranslationConfig(requestConfig)) return;
     started = true;
     try {
-      setBadgeText(`Preparing ${pair()}…`);
+      setBadgeText(`Preparing ${requestConfig.sourceLanguage}→${requestConfig.targetLanguage}…`);
       try {
-        await getTranslator();
+        await getTranslator(requestConfig);
       } catch {
         // On-device translator unavailable; translateText will automatically use cloud fallback
       }
-      if (!enabled) return;
-      setBadgeText(pair());
+      if (!enabled || !isCurrentTranslationConfig(requestConfig)) return;
+      setBadgeText(`${requestConfig.sourceLanguage}→${requestConfig.targetLanguage}`);
       vimiEvent({ pose: "think", say: "Translating this page…", ttl: 3500 });
       io = new IntersectionObserver(
         (entries) => {
@@ -391,22 +457,31 @@
       await F.setHostEnabled(location.hostname, false);
     } else {
       const cfg = await F.getConfig();
-      srcLang = cfg.src || "en";
-      tgtLang = cfg.tgt || "vi";
-      transColor = cfg.transColor || "";
-      translatorPromise = null;
+      applyRuntimeConfig(cfg);
       await F.setHostEnabled(location.hostname, true);
       enable();
     }
   }
 
   async function reapply() {
-    if (!enabled) return;
     const cfg = await F.getConfig();
-    srcLang = cfg.src || "en";
-    tgtLang = cfg.tgt || "vi";
-    transColor = cfg.transColor || "";
-    translatorPromise = null;
+    applyRuntimeConfig(cfg);
+    try {
+      window.dispatchEvent(new CustomEvent("vimi:translation-config-applied", {
+        detail: {
+          sourceLanguage: srcLang,
+          targetLanguage: tgtLang,
+          version: translationConfigVersion,
+        },
+      }));
+    } catch {}
+    applyTransColor();
+    applyReadingPrefs();
+    refreshVocabFeatures();
+    // Selection translation is available even when full-page translation is
+    // off, so runtime language state must always refresh. Only the page reset
+    // below depends on the per-site toggle.
+    if (!enabled) return snapshotTranslationConfig();
     if (io) { io.disconnect(); io = null; }
     if (mo) { mo.disconnect(); mo = null; }
     document.querySelectorAll("." + TRANS_CLASS).forEach((n) => n.remove());
@@ -414,19 +489,16 @@
       .querySelectorAll("[" + DONE_ATTR + "]")
       .forEach((n) => n.removeAttribute(DONE_ATTR));
     started = false;
-    applyTransColor();
     showBadge();
     prepare();
+    return snapshotTranslationConfig();
   }
 
   async function autoStart() {
     const hosts = await F.getHosts();
     if (!hosts[location.hostname]) return;
     const cfg = await F.getConfig();
-    srcLang = cfg.src || "en";
-    tgtLang = cfg.tgt || "vi";
-    transColor = cfg.transColor || "";
-    translatorPromise = null;
+    applyRuntimeConfig(cfg);
     enable();
   }
 
@@ -477,15 +549,18 @@
     card.style.top = `${Math.max(gap, top)}px`;
   }
 
-  function showSelPopup(term, rect, context, longSelection = false, sourceLanguage = srcLang, targetLanguage = tgtLang) {
+  function showSelPopup(term, rect, context, longSelection = false, requestConfig = snapshotTranslationConfig()) {
+    if (!isCurrentTranslationConfig(requestConfig)) return;
     removeLongSelectionTrigger();
     if (selPop) self.VimiTranslationCard.close(selPop, "replace");
     selPop = self.VimiTranslationCard.show({
       sourceText: term,
-      sourceLanguage,
-      targetLanguage,
+      sourceLanguage: requestConfig.sourceLanguage,
+      targetLanguage: requestConfig.targetLanguage,
       context,
-      translate: longSelection ? translateLongSelection : translateText,
+      translate: (text) => longSelection
+        ? translateLongSelection(text, requestConfig)
+        : translateText(text, requestConfig),
       longSelection,
       position: longSelection ? undefined : (card) => positionSelectionCard(card, rect),
       onSaved: () => vimiEvent({ pose: "happy", say: "Saved! 📚", ttl: 2500 }),
@@ -529,8 +604,7 @@
       button,
       text: term,
       range: range.cloneRange(),
-      sourceLanguage: srcLang,
-      targetLanguage: tgtLang,
+      requestConfig: snapshotTranslationConfig(),
     };
     longSelectionTrigger = snapshot;
 
@@ -557,7 +631,7 @@
         return;
       }
       removeLongSelectionTrigger();
-      showSelPopup(snapshot.text, null, "", true, snapshot.sourceLanguage, snapshot.targetLanguage);
+      showSelPopup(snapshot.text, null, "", true, snapshot.requestConfig);
     });
     document.body.appendChild(button);
   }
@@ -868,7 +942,26 @@
   chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
     if (!req) return;
     if (req.type === "BT_TOGGLE") toggle();
-    else if (req.type === "BT_RELOAD") reapply();
+    else if (req.type === "BT_GET_CONFIG") {
+      const config = snapshotTranslationConfig();
+      sendResponse({
+        ok: true,
+        sourceLanguage: config.sourceLanguage,
+        targetLanguage: config.targetLanguage,
+      });
+    }
+    else if (req.type === "BT_RELOAD") {
+      reapply().then((config) => {
+        sendResponse({
+          ok: true,
+          sourceLanguage: config.sourceLanguage,
+          targetLanguage: config.targetLanguage,
+        });
+      }).catch((error) => {
+        sendResponse({ ok: false, error: String(error?.message || error) });
+      });
+      return true;
+    }
     else if (req.type === "BT_OFF") { if (enabled) disable(); } // site removed in Settings
     else if (req.type === "BT_STYLE") {
       // Live appearance / reading-aid change — no re-translation of the page.
@@ -893,9 +986,15 @@
         if (sel && sel.rangeCount) context = sentenceAround(sel.getRangeAt(0));
       } catch {}
       (async () => {
+        const requestConfig = snapshotTranslationConfig();
         let translation = "";
-        try { translation = await translateText(req.term); } catch {}
-        sendResponse({ translation, context, src: srcLang, tgt: tgtLang });
+        try { translation = await translateText(req.term, requestConfig); } catch {}
+        sendResponse({
+          translation,
+          context,
+          src: requestConfig.sourceLanguage,
+          tgt: requestConfig.targetLanguage,
+        });
       })();
       return true; // async response
     }

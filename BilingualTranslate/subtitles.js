@@ -1073,18 +1073,71 @@
 
   let savedVocabSet = new Set();
   const cueCache = new Map(); // LRU translation cache
+  let onDeviceTranslator = null;
+  let translatorInitPromise = null;
+  let translatorPairKey = "";
+  let translationConfigVersion = 0;
 
-  async function refreshConfig() {
+  function snapshotSubtitleTranslationConfig() {
+    return {
+      sourceLanguage: cfg.src || "en",
+      targetLanguage: cfg.tgt || "vi",
+      version: translationConfigVersion,
+    };
+  }
+
+  function isCurrentSubtitleConfig(config) {
+    return config.version === translationConfigVersion &&
+      config.sourceLanguage === (cfg.src || "en") &&
+      config.targetLanguage === (cfg.tgt || "vi");
+  }
+
+  function invalidateSubtitleTranslator() {
+    const staleTranslator = onDeviceTranslator;
+    const stalePending = translatorInitPromise;
+    onDeviceTranslator = null;
+    translatorInitPromise = null;
+    translatorPairKey = "";
+    translationConfigVersion += 1;
+    cueCache.clear();
+    if (staleTranslator) {
+      try { staleTranslator.destroy?.(); } catch {}
+    } else if (stalePending) {
+      Promise.resolve(stalePending).then((translator) => translator?.destroy?.()).catch(() => {});
+    }
+  }
+
+  function applySubtitleConfig(nextConfig, { applyLanguagePair = true } = {}) {
+    const mergedConfig = applyLanguagePair
+      ? nextConfig
+      : { ...nextConfig, src: cfg.src, tgt: cfg.tgt };
+    const pairChanged = (mergedConfig.src || "en") !== (cfg.src || "en") ||
+      (mergedConfig.tgt || "vi") !== (cfg.tgt || "vi");
+    cfg = Object.assign(cfg, mergedConfig);
+    if (pairChanged) invalidateSubtitleTranslator();
+
+    for (const ctrl of activeControllers.values()) {
+      if (pairChanged) {
+        ctrl.resetTranslationInteraction({ reason: "config-change" });
+        clearTimeout(ctrl.translateDebounceTimer);
+        ctrl.currentTranslatedText = "";
+        const currentCue = ctrl.currentCueText;
+        ctrl.currentCueText = "";
+        ctrl.applyConfig();
+        if (currentCue) ctrl.handleNewCue(currentCue);
+        continue;
+      }
+      ctrl.applyConfig();
+    }
+  }
+
+  async function refreshConfig(options) {
     try {
-      cfg = Object.assign(cfg, await F.getConfig());
+      applySubtitleConfig(await F.getConfig(), options);
       const vocabList = await F.getVocab();
       savedVocabSet = new Set(
         vocabList.map((w) => (w.term || "").trim().toLowerCase()).filter(Boolean)
       );
-      // Update all active controllers
-      for (const ctrl of activeControllers.values()) {
-        ctrl.applyConfig();
-      }
     } catch {}
   }
 
@@ -1101,51 +1154,69 @@
   }
 
   if (F && F.getConfig) {
-    F.getConfig().then(refreshConfig).catch(() => {});
+    refreshConfig().catch(() => {});
   }
   if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "local") {
         if (changes.fufuConfig) {
-          refreshConfig().catch(() => {});
+          // Dropdown changes persist immediately, but the active translation
+          // pair changes only after the popup's Refresh action.
+          refreshConfig({ applyLanguagePair: false }).catch(() => {});
         } else if (changes.fufuVocab) {
           refreshSavedVocabMarks().catch(() => {});
         }
       }
     });
   }
+  window.addEventListener("vimi:translation-config-applied", (event) => {
+    const detail = event.detail || {};
+    applySubtitleConfig({
+      src: detail.sourceLanguage || cfg.src,
+      tgt: detail.targetLanguage || cfg.tgt,
+    });
+  });
 
   // ── Translation Pipeline ──────────────────────────────────────────────────
-  let onDeviceTranslator = null;
-  let translatorInitPromise = null;
+  async function getOnDeviceTranslator(requestConfig = snapshotSubtitleTranslationConfig()) {
+    if (!isCurrentSubtitleConfig(requestConfig)) throw new Error("STALE_CONFIG");
+    const key = `${requestConfig.sourceLanguage}->${requestConfig.targetLanguage}`;
+    if (onDeviceTranslator && translatorPairKey === key) return onDeviceTranslator;
+    if (translatorInitPromise && translatorPairKey === key) return translatorInitPromise;
+    if (onDeviceTranslator || translatorInitPromise) invalidateSubtitleTranslator();
 
-  async function getOnDeviceTranslator() {
-    if (onDeviceTranslator) return onDeviceTranslator;
-    if (translatorInitPromise) return translatorInitPromise;
-
-    translatorInitPromise = (async () => {
+    const pendingTranslator = (async () => {
       if (typeof Translator === "undefined") throw new Error("NO_ON_DEVICE_API");
       const t = await Translator.create({
-        sourceLanguage: cfg.src || "en",
-        targetLanguage: cfg.tgt || "vi",
+        sourceLanguage: requestConfig.sourceLanguage,
+        targetLanguage: requestConfig.targetLanguage,
       });
+      if (!isCurrentSubtitleConfig(requestConfig)) {
+        throw new Error("STALE_CONFIG");
+      }
       onDeviceTranslator = t;
       return t;
-    })().catch((err) => {
-      translatorInitPromise = null;
-      throw err;
+    })();
+    translatorInitPromise = pendingTranslator;
+    translatorPairKey = key;
+    pendingTranslator.catch(() => {
+      if (translatorInitPromise === pendingTranslator) {
+        translatorInitPromise = null;
+        translatorPairKey = onDeviceTranslator ? key : "";
+      }
     });
 
-    return translatorInitPromise;
+    return pendingTranslator;
   }
 
-  async function translateCue(text) {
-    const key = `${cfg.src}:${cfg.tgt}:${text}`;
+  async function translateCue(text, requestConfig = snapshotSubtitleTranslationConfig()) {
+    if (!isCurrentSubtitleConfig(requestConfig)) return "";
+    const key = `${requestConfig.sourceLanguage}:${requestConfig.targetLanguage}:${text}`;
     if (cueCache.has(key)) return cueCache.get(key);
 
     let translated = "";
     try {
-      const t = await getOnDeviceTranslator();
+      const t = await getOnDeviceTranslator(requestConfig);
       translated = await t.translate(text);
     } catch {
       // Fallback to background service worker translation
@@ -1154,8 +1225,8 @@
         const res = await chrome.runtime.sendMessage({
           type: "FUFU_TRANSLATE",
           text,
-          src: cfg.src || "auto",
-          tgt: cfg.tgt || "vi",
+          src: requestConfig.sourceLanguage || "auto",
+          tgt: requestConfig.targetLanguage || "vi",
         });
         if (res?.translation) {
           translated = res.translation;
@@ -1163,6 +1234,7 @@
       } catch {}
     }
 
+    if (!isCurrentSubtitleConfig(requestConfig)) return "";
     if (translated) {
       if (cueCache.size > 800) {
         const firstKey = cueCache.keys().next().value;
@@ -2527,9 +2599,10 @@
       // 2. DEBOUNCE TRANSLATION:
       // Debounce translation by 200ms so we translate full clauses without thrashing the API
       clearTimeout(this.translateDebounceTimer);
+      const requestConfig = snapshotSubtitleTranslationConfig();
       this.translateDebounceTimer = setTimeout(async () => {
-        const trans = await translateCue(text);
-        if (this.currentCueText === text) {
+        const trans = await translateCue(text, requestConfig);
+        if (trans && isCurrentSubtitleConfig(requestConfig) && this.currentCueText === text) {
           this.currentTranslatedText = trans;
           const transEl = this.overlay.querySelector(".vimi-sub-trans");
           if (transEl && cfg.videoSubLayout !== "origOnly") {
@@ -2766,16 +2839,17 @@
       const typeBadge = targetSpan?.dataset?.phraseType || targetSpan?.phraseType || (isPhrase ? "Phrase" : "");
       this.setActiveTranslationTarget(targetSpan, term, typeBadge);
       const sessionId = this.translationSessionId;
+      const requestConfig = snapshotSubtitleTranslationConfig();
       const rect = targetSpan.getBoundingClientRect();
       const mountRoot = document.fullscreenElement || document.body;
       let card = null;
       try {
         card = self.VimiTranslationCard.show({
         sourceText: term,
-        sourceLanguage: cfg.src,
-        targetLanguage: cfg.tgt,
+        sourceLanguage: requestConfig.sourceLanguage,
+        targetLanguage: requestConfig.targetLanguage,
         context,
-        translate: translateCue,
+        translate: (text) => translateCue(text, requestConfig),
         mountRoot,
         badgeText: typeBadge,
         position: (card) => {

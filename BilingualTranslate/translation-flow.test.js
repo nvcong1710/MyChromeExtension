@@ -4,12 +4,15 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
-function makeHarness() {
+function makeHarness({ translatorApi } = {}) {
   const listeners = new Map();
   const cards = [];
   const requests = [];
   const translations = [];
   const elements = [];
+  const closedCards = [];
+  let currentConfig = { src: "en", tgt: "vi" };
+  let runtimeMessageListener = null;
   const body = { appendChild(element) { elements.push(element); element.parentElement = body; } };
   const addListener = (type, listener) => {
     if (!listeners.has(type)) listeners.set(type, []);
@@ -79,7 +82,7 @@ function makeHarness() {
     runtime: {
       id: "test-extension",
       getURL: (asset) => `chrome-extension://test/${asset}`,
-      onMessage: { addListener() {} },
+      onMessage: { addListener(listener) { runtimeMessageListener = listener; } },
       sendMessage(message, callback) {
         requests.push(message);
         callback({ translation: "translated text" });
@@ -88,27 +91,45 @@ function makeHarness() {
   };
   const self = {
     FuFu: {
-      getConfig: async () => ({ src: "en", tgt: "vi" }),
+      getConfig: async () => ({ ...currentConfig }),
       getHosts: async () => ({}),
     },
     VimiTranslationCard: {
-      close() {},
+      close(card, reason) {
+        if (!card) return;
+        closedCards.push({ card, reason });
+        card.options?.onClose?.(card, reason);
+      },
       show(options) {
         cards.push(options);
         translations.push(Promise.resolve(options.translate(options.sourceText)));
-        return { contains() { return false; }, classList: { contains() { return options.longSelection; } } };
+        return { options, contains() { return false; }, classList: { contains() { return options.longSelection; } } };
       },
     },
   };
-  const context = vm.createContext({ window, document, self, chrome, location: { hostname: "test.local" }, setTimeout, clearTimeout });
+  const context = vm.createContext({
+    window, document, self, chrome, location: { hostname: "test.local" }, setTimeout, clearTimeout,
+    ...(translatorApi ? { Translator: translatorApi } : {}),
+  });
   const source = fs.readFileSync(path.join(__dirname, "content.js"), "utf8");
   vm.runInContext(source, context);
   return {
-    cards, requests, translations, elements, emit,
+    cards, requests, translations, elements, closedCards, emit,
     select(text, rects) { selectedText = text; selectedRange = rangeFor(rects); collapsed = false; },
     collapse() { collapsed = true; emit("selectionchange"); },
     trigger() { return elements.findLast((element) => element.className === "vimi-long-selection-trigger" && !element.removed); },
     async mouseup() { emit("mouseup", { target: host }); await new Promise((resolve) => setTimeout(resolve, 20)); },
+    async refreshConfig(nextConfig) {
+      currentConfig = { ...currentConfig, ...nextConfig };
+      await new Promise((resolve, reject) => {
+        const asyncResponse = runtimeMessageListener(
+          { type: "BT_RELOAD" },
+          {},
+          (response) => response?.ok === false ? reject(new Error(response.error)) : resolve(response)
+        );
+        if (asyncResponse !== true) resolve();
+      });
+    },
   };
 }
 
@@ -120,6 +141,59 @@ test("short selection still translates immediately without a long trigger", asyn
   assert.equal(app.cards.length, 1);
   assert.equal(app.cards[0].longSelection, false);
   assert.equal(app.requests.length, 1);
+});
+
+test("BT_RELOAD updates selection translation while full-page translation is off", async () => {
+  const app = makeHarness();
+  await app.refreshConfig({ src: "en", tgt: "ja" });
+
+  app.select("generative");
+  await app.mouseup();
+
+  assert.equal(app.cards.length, 1);
+  assert.equal(app.cards[0].sourceLanguage, "en");
+  assert.equal(app.cards[0].targetLanguage, "ja");
+  assert.equal(app.requests.at(-1).src, "en");
+  assert.equal(app.requests.at(-1).tgt, "ja");
+});
+
+test("BT_RELOAD closes an open selection card from the previous pair", async () => {
+  const app = makeHarness();
+  app.select("generative");
+  await app.mouseup();
+  assert.equal(app.cards.length, 1);
+
+  await app.refreshConfig({ src: "en", tgt: "ja" });
+  assert.equal(app.closedCards.at(-1).reason, "config-change");
+});
+
+test("BT_RELOAD destroys the cached translator and creates the next pair", async () => {
+  const createdPairs = [];
+  const destroyedPairs = [];
+  const translatorApi = {
+    create: async ({ sourceLanguage, targetLanguage }) => {
+      const key = `${sourceLanguage}->${targetLanguage}`;
+      createdPairs.push(key);
+      return {
+        async translate() { return key; },
+        destroy() { destroyedPairs.push(key); },
+      };
+    },
+  };
+  const app = makeHarness({ translatorApi });
+
+  app.select("first");
+  await app.mouseup();
+  assert.equal(await app.translations.at(-1), "en->vi");
+
+  await app.refreshConfig({ src: "en", tgt: "ja" });
+  await new Promise((resolve) => setImmediate(resolve));
+  app.select("second");
+  await app.mouseup();
+
+  assert.equal(await app.translations.at(-1), "en->ja");
+  assert.deepEqual(createdPairs, ["en->vi", "en->ja"]);
+  assert.deepEqual(destroyedPairs, ["en->vi"]);
 });
 
 test("long selection waits for trigger click and keeps all raw text", async () => {
@@ -199,6 +273,7 @@ function makeCardHarness() {
   const speech = { cancelCount: 0, speaking: false };
   const copied = [];
   const saved = [];
+  const extensionMessages = [];
   const makeElement = (className = "") => {
     const handlers = new Map();
     const element = {
@@ -255,6 +330,7 @@ function makeCardHarness() {
             [".vimi-source-code", makeElement()],
             [".vimi-target-code", makeElement()],
             [".vimi-language-direction", makeElement()],
+            [".vimi-language-settings-button", makeElement()],
             [".vimi-translation-result", makeElement("vimi-translation-loading")],
             [".vimi-close-button", makeElement()],
             [".vimi-speak-button", makeElement()],
@@ -301,6 +377,7 @@ function makeCardHarness() {
   };
   const context = vm.createContext({
     document, self, window,
+    chrome: { runtime: { sendMessage(message) { extensionMessages.push(message); } } },
     location: { href: "https://test.local/" },
     navigator: { clipboard: { writeText: async (text) => { copied.push(text); } } },
     SpeechSynthesisUtterance: class { constructor(text) { this.text = text; } },
@@ -312,7 +389,7 @@ function makeCardHarness() {
   });
   vm.runInContext(fs.readFileSync(path.join(__dirname, "translation-card.js"), "utf8"), context);
   return {
-    api: self.VimiTranslationCard, body, spoken, speech, copied, saved, window,
+    api: self.VimiTranslationCard, body, spoken, speech, copied, saved, extensionMessages, window,
     emit(type, target) { for (const handler of listeners.get(type) || []) handler({ target }); },
   };
 }
@@ -375,6 +452,18 @@ test("short popup keeps Save and the original flat text structure", async () => 
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(app.saved[0].term, "brief term");
   assert.equal(app.saved[0].translation, "từ ngắn");
+});
+
+test("language button asks the extension action popup to open", () => {
+  const app = makeCardHarness();
+  const card = app.api.show({
+    sourceText: "brief term", sourceLanguage: "ja", targetLanguage: "en",
+    translate: () => "short translation",
+  });
+
+  card.querySelector(".vimi-language-settings-button").click();
+  assert.equal(app.extensionMessages.length, 1);
+  assert.equal(app.extensionMessages[0].type, "VIMI_OPEN_ACTION_POPUP");
 });
 
 for (const longSelection of [false, true]) {
