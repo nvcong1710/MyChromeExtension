@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <script src="theme.js"></script>
     <link rel="stylesheet" href="tailwind.css" />
+    <link rel="stylesheet" href="popup.css" />
   </head>
   <body class="w-[340px] bg-white font-sans text-slate-800 dark:bg-slate-900 dark:text-slate-100">
     <!-- Header -->
@@ -34,17 +35,32 @@
       </section>
 
       <!-- Language pair -->
-      <section class="card flex items-end gap-2 p-3.5">
-        <label class="min-w-0 flex-1">
-          <span class="label">From</span>
-          <select id="src" class="input"></select>
-        </label>
-        <button id="swap" title="Swap languages" aria-label="Swap languages"
-          class="mb-0.5 h-9 w-9 shrink-0 rounded-lg border border-slate-200 bg-white text-brand-600 transition hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600">⇄</button>
-        <label class="min-w-0 flex-1">
-          <span class="label">To</span>
-          <select id="tgt" class="input"></select>
-        </label>
+      <section class="card p-3.5">
+        <div class="language-selector-row">
+          <label class="min-w-0 flex-1">
+            <span class="label">From</span>
+            <select id="src" class="input language-select"></select>
+          </label>
+          <button id="swap" title="Swap languages" aria-label="Swap languages"
+            class="mb-0.5 h-9 w-9 shrink-0 rounded-lg border border-slate-200 bg-white text-brand-600 transition hover:bg-brand-50 dark:border-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600">⇄</button>
+          <label class="min-w-0 flex-1">
+            <span class="label">To</span>
+            <select id="tgt" class="input language-select"></select>
+          </label>
+        </div>
+        <div class="mt-3 border-t border-slate-200 dark:border-slate-700">
+          <div class="mt-3 flex h-8 items-center justify-between gap-2" aria-live="polite">
+            <div id="modelStatus" class="model-status" data-tone="neutral">
+              <span id="modelStatusIcon" class="model-status-icon" aria-hidden="true"></span>
+              <span id="modelStatusText">Checking model…</span>
+            </div>
+            <button id="modelAction" type="button"
+              class="btn hidden shrink-0 px-2.5 py-1.5 text-xs">
+              <span id="modelActionIcon" class="model-action-icon" aria-hidden="true"></span>
+              <span id="modelActionText"></span>
+            </button>
+          </div>
+        </div>
       </section>
 
       <!-- Mascot toggle -->

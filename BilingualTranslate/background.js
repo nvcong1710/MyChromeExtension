@@ -156,6 +156,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
+  if (msg?.type === "VIMI_OPEN_ACTION_POPUP") {
+    (async () => {
+      try {
+        await chrome.action.openPopup();
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({ ok: false, error: String(error?.message || error) });
+      }
+    })();
+    return true;
+  }
+
   // Fallback translation endpoint (used when on-device Translator API is unavailable)
   if (msg?.type === "FUFU_TRANSLATE") {
     (async () => {
