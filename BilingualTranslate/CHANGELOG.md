@@ -1,5 +1,21 @@
 # Vimi Bilingual — Changelog
 
+## v2.1.2
+
+### Improved — Selection translation
+- Refined the translation popup with a clearer source/translation hierarchy,
+  language direction, and Copy action.
+- Long selections (over 60 characters) now open a compact, draggable dialog
+  with independently scrollable source and translated text.
+- Preserve meaningful line and paragraph breaks in long translations, with
+  fixed spacing around the divider while scrolling.
+- Keep Save for short vocabulary selections; long translations offer TTS and
+  Copy without a Save action.
+
+### Fixed — Speech playback
+- Stop text-to-speech when a translation popup or dialog closes, including
+  Close, outside click, and replacement by another translation.
+
 ## v2.1.1
 
 ### New — Local Document Translation with Doc2Notion
