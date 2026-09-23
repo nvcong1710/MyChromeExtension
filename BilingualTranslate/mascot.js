@@ -82,6 +82,7 @@
   function teardown() {
     if (destroyed) return;
     destroyed = true;
+    mascotVisible = false;
     clearTimeout(loopTimer);
     clearTimeout(bubbleTimer);
     clearTimeout(poseTimer);
@@ -212,9 +213,16 @@
   }
 
   function cancelMotion() {
-    host.style.transition = "";
-    charBox.classList.remove("walking");
+    // App events can arrive while init() is still waiting for storage, before
+    // build() has created the mascot DOM (notably just after an extension
+    // reload). Keep cancellation safe during that short lifecycle gap.
+    if (host) host.style.transition = "";
+    if (charBox) charBox.classList.remove("walking");
     busy = false;
+  }
+
+  function mascotReady() {
+    return mascotVisible && !destroyed && !!host && !!charBox;
   }
 
   function bindDrag() {
@@ -430,6 +438,7 @@
   // ── App events from content.js ─────────────────────────────────────────
   function bindEvents() {
     window.addEventListener("vimi:event", (e) => {
+      if (!mascotReady()) return;
       const d = e.detail || {};
       cancelMotion();
       if (d.say) say(d.say, d.onClick, d.pose || "happy", d.ttl);
@@ -443,7 +452,7 @@
         else showMascot();
       }
       // Review/Test finished in another tab → celebrate.
-      if (ch.fufuCelebrate && ch.fufuCelebrate.newValue) {
+      if (ch.fufuCelebrate && ch.fufuCelebrate.newValue && mascotReady()) {
         cancelMotion();
         say("Great job! 🎉", null, "celebrate", 5000);
       }
