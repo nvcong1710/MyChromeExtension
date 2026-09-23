@@ -3,72 +3,83 @@
   position: fixed;
   z-index: 2147483647;
   box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, auto) auto;
   width: max-content;
-  min-width: 170px;
-  max-width: min(300px, calc(100vw - 16px));
-  max-height: calc(100vh - 16px);
-  padding: 12px 14px;
-  overflow-y: auto;
+  min-width: 210px;
+  max-width: min(320px, calc(100vw - 24px));
+  max-height: min(360px, calc(100vh - 24px));
+  overflow: hidden;
   overflow-wrap: anywhere;
   color: #f8fafc;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #182231;
+  border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.48);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.46);
   font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   text-align: left;
   animation: vimi-translation-fade-in 0.15s ease both;
 }
 
-.vimi-translation-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
+.vimi-translation-card,
+.vimi-translation-card * {
+  box-sizing: border-box;
 }
 
-.vimi-translation-heading {
+.vimi-translation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding: 5px 8px 5px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.vimi-language-direction {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.vimi-language-arrow {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.vimi-translation-body {
+  min-height: 0;
+  padding: 10px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .vimi-translation-source {
   color: #7dd3fc;
   font-size: 14px;
   font-weight: 700;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
-.vimi-translation-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 5px;
-}
-
-.vimi-translation-meta[hidden] {
-  display: none;
-}
-
-.vimi-pop-chip {
-  display: inline-block;
-  max-width: 100%;
-  padding: 1px 6px;
-  overflow-wrap: anywhere;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.2);
-  border: 1px solid rgba(56, 189, 248, 0.4);
-  border-radius: 9999px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  line-height: 1.4;
-  text-transform: uppercase;
+.vimi-translation-divider {
+  height: 1px;
+  margin: 9px 0;
+  background: rgba(148, 163, 184, 0.18);
 }
 
 .vimi-translation-result {
-  min-height: 18px;
-  margin: 5px 0 11px;
   color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .vimi-translation-loading {
@@ -79,58 +90,72 @@
 .vimi-translation-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 6px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .vimi-translation-card button {
   appearance: none;
   box-sizing: border-box;
-  height: 34px;
+  height: 32px;
   margin: 0;
   font: inherit;
   letter-spacing: normal;
   text-transform: none;
   cursor: pointer;
   border-radius: 8px;
-  transition: background-color 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease, opacity 0.14s ease, transform 0.08s ease;
 }
 
-.vimi-close-button {
-  display: inline-grid;
-  width: 26px;
-  height: 26px !important;
+.vimi-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
   padding: 0;
-  place-items: center;
-  color: #94a3b8;
-  background: transparent;
-  border: 1px solid transparent;
-  font-size: 18px !important;
-  font-weight: 400;
-  line-height: 1 !important;
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  line-height: 1;
 }
 
-.vimi-close-button:hover {
+.vimi-icon-button svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vimi-icon-button:hover:not(:disabled) {
   color: #f8fafc;
   background: rgba(148, 163, 184, 0.18);
   border-color: rgba(148, 163, 184, 0.22);
 }
 
-.vimi-speak-button {
-  display: inline-grid;
-  width: 34px;
-  padding: 0;
-  place-items: center;
-  color: #e2e8f0;
-  background: #334155;
-  border: 1px solid #475569;
-  line-height: 1;
+.vimi-icon-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
-.vimi-speak-button:hover { background: #475569; }
+.vimi-close-button {
+  width: 28px;
+  height: 28px !important;
+  color: #94a3b8;
+  background: transparent;
+  border-color: transparent;
+}
+
+.vimi-copy-button.copied {
+  color: #86efac;
+}
 
 .vimi-save-button {
   min-width: 72px;
+  margin-left: auto !important;
   padding: 0 13px;
   color: #fff;
   background: #1a73e8;
@@ -142,6 +167,130 @@
 .vimi-save-button.saved { background: #1e8e3e; }
 .vimi-translation-card button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .vimi-translation-card button:disabled { cursor: default; opacity: 0.72; }
+
+/* The long selection reuses the same card controls and text hierarchy. */
+.vimi-translation-card.vimi-translation-long {
+  top: 12px;
+  right: 12px;
+  left: auto;
+  grid-template-rows: 44px minmax(0, 1fr) 50px;
+  width: 390px;
+  height: 470px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+}
+
+.vimi-translation-long .vimi-translation-header {
+  min-height: 0;
+  padding: 0 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.vimi-translation-long .vimi-translation-header.vimi-translation-dragging {
+  cursor: grabbing;
+}
+
+.vimi-translation-long .vimi-language-direction {
+  font-size: 12px;
+}
+
+.vimi-translation-long .vimi-close-button {
+  width: 32px;
+  height: 32px !important;
+}
+
+.vimi-translation-long .vimi-translation-body {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 1px minmax(0, 1fr);
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.vimi-translation-long .vimi-translation-source-section,
+.vimi-translation-long .vimi-translation-result-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vimi-translation-long .vimi-translation-source-section {
+  padding-bottom: 16px;
+}
+
+.vimi-translation-long .vimi-translation-result-section {
+  padding-top: 16px;
+}
+
+.vimi-translation-long .vimi-translation-source,
+.vimi-translation-long .vimi-translation-result {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 12px 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #475569 transparent;
+  scrollbar-width: thin;
+  line-height: 1.5;
+}
+
+.vimi-translation-long .vimi-translation-source {
+  font-weight: 600;
+}
+
+.vimi-translation-long .vimi-translation-result {
+  padding: 0 12px 12px;
+  font-size: 14px;
+}
+
+.vimi-translation-long .vimi-translation-divider {
+  margin: 0 12px;
+}
+
+.vimi-translation-long .vimi-translation-actions {
+  justify-content: space-between;
+  min-height: 0;
+  padding: 7px 12px;
+}
+
+.vimi-long-selection-trigger {
+  all: initial;
+  position: fixed;
+  z-index: 2147483647;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 7px;
+  background: #182231;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+
+.vimi-long-selection-trigger:hover {
+  background: #334155;
+}
+
+.vimi-long-selection-trigger:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 2px;
+}
+
+.vimi-long-selection-trigger img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
 
 @keyframes vimi-translation-pulse {
   from { opacity: 0.55; }
@@ -155,8 +304,7 @@
 
 @media (max-width: 360px) {
   .vimi-translation-card {
-    min-width: 150px;
+    min-width: min(210px, calc(100vw - 12px));
     max-width: calc(100vw - 12px);
-    padding: 10px 12px;
   }
 }

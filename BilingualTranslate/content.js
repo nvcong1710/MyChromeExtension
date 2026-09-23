@@ -146,6 +146,30 @@
     return "";
   }
 
+  // The providers return plain text and may merge paragraph boundaries. Only
+  // long selections are translated line by line so real source newlines survive.
+  async function translateLongSelection(text) {
+    if (!/[\r\n]/.test(text)) return translateText(text);
+    const parts = text.replace(/\r\n?/g, "\n").split(/(\n+)/);
+    const lineIndexes = parts.flatMap((part, index) => part.trim() && !part.startsWith("\n") ? [index] : []);
+
+    const translatedParts = [...parts];
+    let nextLine = 0;
+    const translateNext = async () => {
+      while (nextLine < lineIndexes.length) {
+        const index = lineIndexes[nextLine++];
+        const line = parts[index];
+        const translated = await translateText(line.trim());
+        if (!translated?.trim()) throw new Error("Translation unavailable");
+        const leading = line.match(/^\s*/)[0];
+        const trailing = line.match(/\s*$/)[0];
+        translatedParts[index] = leading + translated.trim() + trailing;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, lineIndexes.length) }, translateNext));
+    return translatedParts.join("");
+  }
+
   // ── Block selection (full-page translation) ────────────────────────────
   function hasSkippedAncestor(el) {
     if (el.closest?.('[data-bt-translatable="true"]')) return false;
@@ -411,6 +435,12 @@
   let selectionOpenTimer = null;
   let selectionRequestVersion = 0;
   let dismissedSelectionText = "";
+  let longSelectionTrigger = null;
+
+  function removeLongSelectionTrigger() {
+    longSelectionTrigger?.button.remove();
+    longSelectionTrigger = null;
+  }
 
   function sentenceAround(range) {
     // Use the nearest block element's text as the context sentence.
@@ -432,6 +462,7 @@
     selectionRequestVersion += 1;
     clearTimeout(selectionOpenTimer);
     selectionOpenTimer = null;
+    removeLongSelectionTrigger();
     if (selPop) self.VimiTranslationCard.close(selPop, reason);
   }
 
@@ -446,15 +477,17 @@
     card.style.top = `${Math.max(gap, top)}px`;
   }
 
-  async function showSelPopup(term, rect, context) {
+  function showSelPopup(term, rect, context, longSelection = false, sourceLanguage = srcLang, targetLanguage = tgtLang) {
+    removeLongSelectionTrigger();
     if (selPop) self.VimiTranslationCard.close(selPop, "replace");
     selPop = self.VimiTranslationCard.show({
       sourceText: term,
-      sourceLanguage: srcLang,
-      targetLanguage: tgtLang,
+      sourceLanguage,
+      targetLanguage,
       context,
-      translate: translateText,
-      position: (card) => positionSelectionCard(card, rect),
+      translate: longSelection ? translateLongSelection : translateText,
+      longSelection,
+      position: longSelection ? undefined : (card) => positionSelectionCard(card, rect),
       onSaved: () => vimiEvent({ pose: "happy", say: "Saved! 📚", ttl: 2500 }),
       onClose: (card, reason) => {
         if (selPop === card) selPop = null;
@@ -463,6 +496,70 @@
         }
       },
     });
+  }
+
+  function selectionMatches(range, text) {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return false;
+    const current = selection.getRangeAt(0);
+    return selection.toString().trim() === text &&
+      current.startContainer === range.startContainer &&
+      current.startOffset === range.startOffset &&
+      current.endContainer === range.endContainer &&
+      current.endOffset === range.endOffset;
+  }
+
+  function showLongSelectionTrigger(term, range) {
+    const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
+    const rect = rects.at(-1) || range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) return;
+
+    removeSelPop("replace");
+    self.VimiTranslationCard.close(undefined, "replace");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "vimi-long-selection-trigger";
+    button.title = "Translate selected text";
+    button.setAttribute("aria-label", "Translate selected text");
+    const icon = document.createElement("img");
+    icon.src = chrome.runtime.getURL("icon32.png");
+    icon.alt = "";
+    button.appendChild(icon);
+    const snapshot = {
+      button,
+      text: term,
+      range: range.cloneRange(),
+      sourceLanguage: srcLang,
+      targetLanguage: tgtLang,
+    };
+    longSelectionTrigger = snapshot;
+
+    const gap = 8;
+    const size = 30;
+    const left = Math.max(gap, Math.min(rect.right + 4, window.innerWidth - size - gap));
+    const desiredTop = rect.bottom + 4;
+    const top = desiredTop + size + gap <= window.innerHeight
+      ? desiredTop
+      : rect.top - size - 4;
+    button.style.left = `${left}px`;
+    button.style.top = `${Math.max(gap, Math.min(top, window.innerHeight - size - gap))}px`;
+
+    for (const eventName of ["pointerdown", "pointerup", "mousedown", "mouseup", "click"]) {
+      button.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+        if (eventName === "pointerdown" || eventName === "mousedown") event.preventDefault();
+      });
+    }
+    button.addEventListener("click", () => {
+      if (longSelectionTrigger !== snapshot) return;
+      if (!selectionMatches(snapshot.range, snapshot.text)) {
+        removeLongSelectionTrigger();
+        return;
+      }
+      removeLongSelectionTrigger();
+      showSelPopup(snapshot.text, null, "", true, snapshot.sourceLanguage, snapshot.targetLanguage);
+    });
+    document.body.appendChild(button);
   }
 
   document.addEventListener("mouseup", (e) => {
@@ -479,20 +576,23 @@
         return;
       }
       dismissedSelectionText = "";
-      // Only react to short selections (a word or brief phrase).
-      if (!term || term.length < 2 || term.length > 60 || !HAS_LETTER.test(term)) {
+      if (!term || term.length < 2 || !HAS_LETTER.test(term)) {
         removeSelPop();
         return;
       }
       const node = sel.anchorNode;
       const host = node && node.nodeType === 3 ? node.parentElement : node;
       if (host) {
-        if (host.closest(".vimi-translation-card, .vimi-sub-overlay, input, textarea")) return;
+        if (host.closest(".vimi-translation-card, .vimi-long-selection-trigger, .vimi-sub-overlay, input, textarea")) return;
         if (host.closest("[contenteditable]") && !host.closest('[data-bt-translatable="true"]')) return;
       }
       const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
       if (!rect || (rect.width === 0 && rect.height === 0)) return;
+      if (term.length > 60) {
+        showLongSelectionTrigger(term, range);
+        return;
+      }
       const context = sentenceAround(range);
       showSelPopup(term, rect, context);
     }, 10);
@@ -504,7 +604,29 @@
       removeSelPop("outside");
     }
   });
-  document.addEventListener("scroll", () => removeSelPop("scroll"), { passive: true });
+  document.addEventListener("selectionchange", () => {
+    if (longSelectionTrigger && !selectionMatches(longSelectionTrigger.range, longSelectionTrigger.text)) {
+      removeLongSelectionTrigger();
+    }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (longSelectionTrigger && !longSelectionTrigger.button.contains(event.target)) {
+      dismissedSelectionText = window.getSelection()?.toString().trim() || "";
+      removeLongSelectionTrigger();
+    }
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") removeLongSelectionTrigger();
+  });
+  window.addEventListener("pagehide", removeLongSelectionTrigger);
+  document.addEventListener("scroll", (event) => {
+    if (longSelectionTrigger && !longSelectionTrigger.button.contains(event.target)) {
+      removeLongSelectionTrigger();
+    }
+  }, { passive: true, capture: true });
+  document.addEventListener("scroll", () => {
+    if (!selPop?.classList.contains("vimi-translation-long")) removeSelPop("scroll");
+  }, { passive: true });
 
   // ── Reading aids: highlight saved words + inline "sprinkle" learning ────
   // Both walk the page's text for words you've already saved. Highlight mode
