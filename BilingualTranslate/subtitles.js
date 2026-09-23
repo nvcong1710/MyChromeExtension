@@ -1314,6 +1314,7 @@
       this.boundPause = () => this.cancelStickyClear();
       this.boundPlay = () => {
         this.resetTranslationInteraction({ reason: "video-play" });
+        this.mountToContainer();
         if (this.currentCueText) this.scheduleStickyClear(6000);
       };
       this.boundEnded = () => {
@@ -1342,6 +1343,8 @@
       this.phraseSelectionTimer = null;
       this.phraseClickSuppressionTimer = null;
       this.boundResize = null;
+      this.boundFullscreen = null;
+      this.adObserver = null;
 
       this.initUI();
       this.attachEvents();
@@ -1409,6 +1412,7 @@
       this.fileInput = document.createElement("input");
       this.fileInput.type = "file";
       this.fileInput.accept = ".srt,.vtt";
+      this.fileInput.className = "vimi-sub-file-input";
       this.fileInput.style.display = "none";
       this.fileInput.addEventListener("change", (e) => this.handleFileSelect(e));
 
@@ -1422,6 +1426,22 @@
 
     mountToContainer() {
       const target = document.fullscreenElement || this.container;
+      if (!target) return;
+
+      // Ensure no duplicate badges, overlays, menus, or file inputs exist in target
+      target.querySelectorAll(".vimi-sub-badge").forEach((el) => {
+        if (el !== this.badge) el.remove();
+      });
+      target.querySelectorAll(".vimi-sub-overlay").forEach((el) => {
+        if (el !== this.overlay) el.remove();
+      });
+      target.querySelectorAll(".vimi-sub-menu").forEach((el) => {
+        if (el !== this.menu) el.remove();
+      });
+      target.querySelectorAll("input[type='file'].vimi-sub-file-input").forEach((el) => {
+        if (el !== this.fileInput) el.remove();
+      });
+
       if (!target.contains(this.overlay)) target.appendChild(this.overlay);
       if (!target.contains(this.badge)) target.appendChild(this.badge);
       if (!target.contains(this.menu)) target.appendChild(this.menu);
@@ -2277,11 +2297,38 @@
       window.addEventListener("resize", this.boundResize);
 
       // Fullscreen change handling
-      const handleFullscreen = () => {
+      this.boundFullscreen = () => {
         this.mountToContainer();
       };
-      document.addEventListener("fullscreenchange", handleFullscreen);
-      document.addEventListener("webkitfullscreenchange", handleFullscreen);
+      document.addEventListener("fullscreenchange", this.boundFullscreen);
+      document.addEventListener("webkitfullscreenchange", this.boundFullscreen);
+
+      // Ad observer for YouTube (#movie_player) and video players
+      const adContainer = this.video.closest?.('#movie_player, .html5-video-player') || this.container;
+      if (adContainer && typeof MutationObserver !== "undefined") {
+        const checkAdState = () => {
+          const isAd = Boolean(
+            adContainer.classList?.contains("ad-showing") ||
+            adContainer.classList?.contains("ad-interrupting") ||
+            adContainer.querySelector?.(".video-ads:not(:empty), .ytp-ad-module:not(:empty)")
+          );
+          if (isAd) {
+            this.overlay?.classList.add("vimi-sub-hidden");
+            if (this.badge) this.badge.style.display = "none";
+            this.menu?.classList.add("vimi-menu-hidden");
+            this.resetTranslationInteraction({ reason: "ad-playing" });
+          } else {
+            if (this.badge && this.badge.style.display === "none") {
+              this.badge.style.display = "";
+            }
+            this.mountToContainer();
+          }
+        };
+
+        this.adObserver = new MutationObserver(checkAdState);
+        this.adObserver.observe(adContainer, { attributes: true, attributeFilter: ["class"] });
+        checkAdState();
+      }
 
       // Continuous timeupdate & state synchronization
       this.video.addEventListener("timeupdate", this.boundTimeUpdate);
@@ -2910,6 +2957,14 @@
       if (this.cleanupPhraseHighlight) this.cleanupPhraseHighlight();
       this.resetTranslationInteraction({ reason: "destroy" });
       if (this.boundResize) window.removeEventListener("resize", this.boundResize);
+      if (this.boundFullscreen) {
+        document.removeEventListener("fullscreenchange", this.boundFullscreen);
+        document.removeEventListener("webkitfullscreenchange", this.boundFullscreen);
+      }
+      if (this.adObserver) {
+        this.adObserver.disconnect();
+        this.adObserver = null;
+      }
       if (this.domObserver) this.domObserver.disconnect();
       if (this.activeTrack) {
         this.activeTrack.removeEventListener("cuechange", this.boundCueChange);
@@ -2929,17 +2984,87 @@
   // ── Global Video Scanner & Lifecycle Manager ─────────────────────────────
   const activeControllers = new Map();
 
-  function isEligibleVideo(v) {
+  function isAdVideo(v) {
     if (!v) return false;
+
+    // 1. YouTube player context
+    const ytPlayer = v.closest?.("#movie_player, .html5-video-player");
+    if (ytPlayer) {
+      const isAdShowing = ytPlayer.classList?.contains("ad-showing") ||
+                          ytPlayer.classList?.contains("ad-interrupting");
+      const isAdChild = Boolean(v.closest?.(".video-ads, .ytp-ad-module, .ytp-ad-player-overlay"));
+      const hasMainVideo = Boolean(ytPlayer.querySelector?.(".html5-main-video"));
+      const isNotMainVideo = hasMainVideo && !v.classList?.contains("html5-main-video");
+
+      if (isAdChild || isNotMainVideo) return true;
+      if (isAdShowing && !v.classList?.contains("html5-main-video")) return true;
+    }
+
+    // 2. Generic platform ad containers
+    if (v.closest?.('.ad-showing, .ad-interrupting, .video-ads, .ytp-ad-module, [class*="ad-container"], [class*="ad-player"], [class*="-ad-slot"], [id*="ad-container"], [data-ad]')) {
+      return true;
+    }
+
+    // 3. Classes and attributes on the video itself
+    if (v.classList?.contains("ad-video") ||
+        v.hasAttribute?.("data-ad") ||
+        v.getAttribute?.("aria-label")?.toLowerCase().includes("advertisement") ||
+        v.getAttribute?.("aria-label")?.toLowerCase().includes("quảng cáo")) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function isEligibleVideo(v) {
+    if (!v || !v.isConnected) return false;
+    if (isAdVideo(v)) return false;
+
+    const rect = v.getBoundingClientRect?.() || { width: 0, height: 0 };
     // Check if video is visible and not an audio-only / tracking pixel
-    const rect = v.getBoundingClientRect();
     if (rect.width > 0 && rect.width < 120 && rect.height > 0 && rect.height < 80) return false;
+
+    // Disregard hidden elements with explicit display:none or visibility:hidden
+    const style = (typeof window !== "undefined" && window.getComputedStyle?.(v)) || v.style;
+    if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+
     return true;
+  }
+
+  function pruneStaleControllers() {
+    for (const [video, ctrl] of activeControllers.entries()) {
+      if (!video.isConnected || isAdVideo(video)) {
+        ctrl.destroy();
+        activeControllers.delete(video);
+      }
+    }
   }
 
   function registerVideo(video) {
     if (activeControllers.has(video)) return;
     if (!isEligibleVideo(video)) return;
+
+    pruneStaleControllers();
+
+    // Prevent duplicate controllers for the same player container
+    for (const [existingVideo, existingCtrl] of activeControllers.entries()) {
+      const c1 = existingCtrl.container;
+      const c2 = video.closest?.(
+        '#movie_player, .html5-video-player, .video-js, [class*="player__"], [class*="player-container"], [data-purpose="video-player"], [class*="video-player"]'
+      );
+      if (c1 && c2 && (c1 === c2 || c1.contains(video) || c2.contains(existingVideo))) {
+        // Active controller already manages this player container
+        if (existingVideo.isConnected && isEligibleVideo(existingVideo) && !existingVideo.paused) {
+          return;
+        }
+        if (!existingVideo.isConnected || !isEligibleVideo(existingVideo) || existingVideo.ended) {
+          existingCtrl.destroy();
+          activeControllers.delete(existingVideo);
+          break;
+        }
+        return;
+      }
+    }
 
     try {
       const ctrl = new VideoController(video);
@@ -2950,11 +3075,25 @@
   }
 
   function scanVideos() {
+    pruneStaleControllers();
     document.querySelectorAll("video").forEach(registerVideo);
   }
 
+  // Expose internals for automated testing in Node/browser environments
+  if (typeof window !== "undefined") {
+    window.__vimiSubtitlesInternal = {
+      isAdVideo,
+      isEligibleVideo,
+      registerVideo,
+      scanVideos,
+      pruneStaleControllers,
+      activeControllers,
+      VideoController,
+    };
+  }
+
   // Watch for newly mounted videos (e.g. SPAs, course lectures, dynamic video players)
-  const videoObserver = new MutationObserver((mutations) => {
+  const videoObserver = typeof MutationObserver !== "undefined" ? new MutationObserver((mutations) => {
     let shouldScan = false;
     for (const m of mutations) {
       if (m.addedNodes && m.addedNodes.length > 0) {
@@ -2986,12 +3125,14 @@
       }
     }
     if (shouldScan) scanVideos();
-  });
+  }) : null;
 
-  videoObserver.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-  });
+  if (videoObserver && typeof document !== "undefined" && document.documentElement) {
+    videoObserver.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  }
 
   // Initial scan
   if (document.readyState === "loading") {
