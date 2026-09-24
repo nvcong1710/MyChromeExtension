@@ -25,6 +25,15 @@
   color: #64748b;
 }
 
+.model-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .model-status-icon,
 .model-action-icon {
   display: inline-flex;

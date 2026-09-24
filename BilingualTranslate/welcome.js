@@ -49,7 +49,7 @@ async function checkModelStatus() {
   }
 
   try {
-    const availability = await Translator.availability({ sourceLanguage: src, targetLanguage: tgt }).catch(() => "unavailable");
+    const availability = await Translator.availability(F.toOnDevicePair({ sourceLanguage: src, targetLanguage: tgt })).catch(() => "unavailable");
     if (availability === "available" || availability === "readily") {
       badge.textContent = "Ready ✓";
       badge.className = "chip bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
@@ -101,9 +101,8 @@ async function startModelDownload() {
   lbl.textContent = `Downloading ${src}→${tgt} model…`;
 
   try {
-    await Translator.create({
-      sourceLanguage: src,
-      targetLanguage: tgt,
+    const translator = await Translator.create({
+      ...F.toOnDevicePair({ sourceLanguage: src, targetLanguage: tgt }),
       monitor(m) {
         m.addEventListener("downloadprogress", (e) => {
           const loadedPct = Math.round((e.loaded || 0) * 100);
@@ -113,6 +112,7 @@ async function startModelDownload() {
         });
       },
     });
+    translator?.destroy?.();
     bar.style.width = "100%";
     pct.textContent = "100%";
     badge.textContent = "Ready ✓";
@@ -121,7 +121,7 @@ async function startModelDownload() {
     btn.classList.add("hidden");
     setTimeout(() => prog.classList.add("hidden"), 2500);
   } catch (err) {
-    console.warn("Model download error:", err);
+    console.warn(`Model download error: ${err?.name || "Error"}: ${err?.message || String(err)}`);
     lbl.textContent = "Could not download local model. Cloud fallback will be used.";
     badge.textContent = "Cloud Fallback Active";
     badge.className = "chip bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";

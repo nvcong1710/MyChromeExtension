@@ -93,6 +93,12 @@ function makeHarness({ translatorApi } = {}) {
     FuFu: {
       getConfig: async () => ({ ...currentConfig }),
       getHosts: async () => ({}),
+      toOnDevicePair(pair) {
+        return {
+          sourceLanguage: pair.sourceLanguage === "zh-TW" ? "zh-Hant" : pair.sourceLanguage,
+          targetLanguage: pair.targetLanguage === "zh-TW" ? "zh-Hant" : pair.targetLanguage,
+        };
+      },
     },
     VimiTranslationCard: {
       close(card, reason) {
@@ -119,11 +125,11 @@ function makeHarness({ translatorApi } = {}) {
     collapse() { collapsed = true; emit("selectionchange"); },
     trigger() { return elements.findLast((element) => element.className === "vimi-long-selection-trigger" && !element.removed); },
     async mouseup() { emit("mouseup", { target: host }); await new Promise((resolve) => setTimeout(resolve, 20)); },
-    async refreshConfig(nextConfig) {
+    async refreshConfig(nextConfig, message = {}) {
       currentConfig = { ...currentConfig, ...nextConfig };
       await new Promise((resolve, reject) => {
         const asyncResponse = runtimeMessageListener(
-          { type: "BT_RELOAD" },
+          { type: "BT_RELOAD", ...message },
           {},
           (response) => response?.ok === false ? reject(new Error(response.error)) : resolve(response)
         );
@@ -194,6 +200,64 @@ test("BT_RELOAD destroys the cached translator and creates the next pair", async
   assert.equal(await app.translations.at(-1), "en->ja");
   assert.deepEqual(createdPairs, ["en->vi", "en->ja"]);
   assert.deepEqual(destroyedPairs, ["en->vi"]);
+});
+
+test("a failed local translator uses cloud without retrying for every selection", async () => {
+  let createCount = 0;
+  const app = makeHarness({
+    translatorApi: {
+      async create() {
+        createCount += 1;
+        throw new DOMException("Unable to create translator", "NotSupportedError");
+      },
+    },
+  });
+
+  app.select("first");
+  await app.mouseup();
+  assert.equal(await app.translations.at(-1), "translated text");
+  app.select("second");
+  await app.mouseup();
+  assert.equal(await app.translations.at(-1), "translated text");
+
+  assert.equal(createCount, 1);
+  assert.equal(app.requests.length, 2);
+});
+
+test("applying with cloud skips local translator creation", async () => {
+  let createCount = 0;
+  const app = makeHarness({
+    translatorApi: {
+      async create() {
+        createCount += 1;
+        throw new Error("local model should be skipped");
+      },
+    },
+  });
+  await app.refreshConfig({ src: "ja", tgt: "vi" }, { preferCloud: true });
+  app.select("cloud source");
+  await app.mouseup();
+
+  assert.equal(await app.translations.at(-1), "translated text");
+  assert.equal(createCount, 0);
+  assert.equal(app.requests.at(-1).src, "ja");
+});
+
+test("selection translation normalizes traditional Chinese for the local API", async () => {
+  const createdPairs = [];
+  const app = makeHarness({
+    translatorApi: {
+      async create(pair) {
+        createdPairs.push(`${pair.sourceLanguage}->${pair.targetLanguage}`);
+        return { async translate() { return "local"; }, destroy() {} };
+      },
+    },
+  });
+  await app.refreshConfig({ src: "zh-TW", tgt: "vi" });
+  app.select("source");
+  await app.mouseup();
+  assert.equal(await app.translations.at(-1), "local");
+  assert.equal(createdPairs.at(-1), "zh-Hant->vi");
 });
 
 test("long selection waits for trigger click and keeps all raw text", async () => {

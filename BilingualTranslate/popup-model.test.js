@@ -69,7 +69,13 @@ function makeHarness({ initialAvailability = "available", availability } = {}) {
   const config = { src: "en", tgt: "vi", dailyGoal: 10, mascotEnabled: true, videoSubEnabled: true };
   const FuFu = {
     POPULAR_LANGUAGES: [["en", "English"], ["vi", "Vietnamese"]],
-    LANGUAGES: [["en", "English"], ["vi", "Vietnamese"], ["ja", "Japanese"], ["ko", "Korean"]],
+    LANGUAGES: [["en", "English"], ["vi", "Vietnamese"], ["ja", "Japanese"], ["ko", "Korean"], ["zh-TW", "Chinese (Traditional)"]],
+    toOnDevicePair(pair) {
+      return {
+        sourceLanguage: pair.sourceLanguage === "zh-TW" ? "zh-Hant" : pair.sourceLanguage,
+        targetLanguage: pair.targetLanguage === "zh-TW" ? "zh-Hant" : pair.targetLanguage,
+      };
+    },
     async getConfig() { return { ...config }; },
     async setConfig(patch) { Object.assign(config, patch); savedConfigs.push({ ...patch }); },
     async getHosts() { return {}; },
@@ -209,10 +215,61 @@ test("a stale availability response cannot overwrite the current pair", async ()
   assert.equal(app.elements.modelActionText.textContent, "Download model");
 });
 
-test("unsupported pairs have no download action", async () => {
+test("unsupported pairs keep cloud translation available", async () => {
   const app = makeHarness({ initialAvailability: "unavailable" });
   await flush();
-  assert.equal(app.elements.modelStatusText.textContent, "Model unavailable");
-  assert.equal(app.elements.modelAction.classList.contains("hidden"), true);
+  assert.equal(app.elements.modelStatusText.textContent, "Local model unavailable · Use cloud");
+  assert.equal(app.elements.modelActionText.textContent, "Refresh with cloud");
   assert.equal(app.creates.length, 0);
+});
+
+test("a failed model download still allows applying with cloud", async () => {
+  const app = makeHarness({ initialAvailability: "downloadable" });
+  app.Translator.create = (options) => {
+    app.creates.push(options);
+    return Promise.reject(new DOMException(
+      "Unable to create translator for the given source and target language.",
+      "NotSupportedError"
+    ));
+  };
+  await flush();
+  app.elements.src.value = "ja";
+  await Promise.all(app.elements.src.emit("change"));
+  await flush();
+
+  app.elements.modelAction.emit("click");
+  await flush();
+  assert.equal(app.elements.modelStatusText.textContent, "Model download failed · Use cloud");
+  assert.equal(app.elements.modelActionText.textContent, "Use cloud");
+
+  await Promise.all(app.elements.modelAction.emit("click"));
+  await flush();
+  const reload = app.messages.find((message) => message.type === "BT_RELOAD");
+  assert.equal(reload.preferCloud, true);
+  assert.equal(reload.localModelReady, false);
+  assert.equal(app.elements.modelStatusText.textContent, "Model download failed · Use cloud");
+  assert.equal(app.elements.modelActionText.textContent, "Refresh with cloud");
+
+  app.elements.src.value = "en";
+  await Promise.all(app.elements.src.emit("change"));
+  await flush();
+  app.elements.src.value = "ja";
+  await Promise.all(app.elements.src.emit("change"));
+  await flush();
+  assert.equal(app.elements.modelActionText.textContent, "Download model");
+  app.elements.modelAction.emit("click");
+  await flush();
+  assert.equal(app.creates.length, 2);
+});
+
+test("traditional Chinese uses the canonical local model language code", async () => {
+  const calls = [];
+  const app = makeHarness({
+    availability: async (pair) => { calls.push({ ...pair }); return "available"; },
+  });
+  await flush();
+  app.elements.src.value = "zh-TW";
+  await Promise.all(app.elements.src.emit("change"));
+  await flush();
+  assert.deepEqual(calls.at(-1), { sourceLanguage: "zh-Hant", targetLanguage: "vi" });
 });

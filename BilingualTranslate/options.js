@@ -123,7 +123,7 @@ async function checkOptModelStatus() {
   }
 
   try {
-    const availability = await Translator.availability({ sourceLanguage: src, targetLanguage: tgt }).catch(() => "unavailable");
+    const availability = await Translator.availability(F.toOnDevicePair({ sourceLanguage: src, targetLanguage: tgt })).catch(() => "unavailable");
     if (availability === "available" || availability === "readily") {
       badge.textContent = "Ready ✓";
       badge.className = "chip bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
@@ -171,9 +171,8 @@ async function startOptModelDownload() {
   bar.style.width = "5%";
 
   try {
-    await Translator.create({
-      sourceLanguage: src,
-      targetLanguage: tgt,
+    const translator = await Translator.create({
+      ...F.toOnDevicePair({ sourceLanguage: src, targetLanguage: tgt }),
       monitor(m) {
         m.addEventListener("downloadprogress", (e) => {
           const loadedPct = Math.round((e.loaded || 0) * 100);
@@ -182,6 +181,7 @@ async function startOptModelDownload() {
         });
       },
     });
+    translator?.destroy?.();
     bar.style.width = "100%";
     badge.textContent = "Ready ✓";
     badge.className = "chip bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
@@ -189,7 +189,7 @@ async function startOptModelDownload() {
     btn.classList.add("hidden");
     setTimeout(() => prog.classList.add("hidden"), 2500);
   } catch (err) {
-    console.warn("Model download error:", err);
+    console.warn(`Model download error: ${err?.name || "Error"}: ${err?.message || String(err)}`);
     badge.textContent = "Cloud Fallback Active";
     badge.className = "chip bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
     btn.classList.add("hidden");
@@ -346,7 +346,7 @@ $("testNotifyBtn").addEventListener("click", () => {
 async function autoTranslate(term, cfg) {
   if (typeof Translator !== "undefined") {
     try {
-      const t = await Translator.create({ sourceLanguage: cfg.src, targetLanguage: cfg.tgt });
+      const t = await Translator.create(F.toOnDevicePair({ sourceLanguage: cfg.src, targetLanguage: cfg.tgt }));
       const trans = await t.translate(term);
       if (trans && trans.trim()) return trans;
     } catch {}

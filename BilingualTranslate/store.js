@@ -198,6 +198,20 @@
     ["zu", "Zulu"]
   ];
 
+  // Browser-managed Translator models use canonical BCP 47 tags. Keep the
+  // saved/cloud code unchanged, but normalize known aliases for the local API.
+  function toOnDeviceLanguageCode(code) {
+    if (code === "zh-TW") return "zh-Hant";
+    return code;
+  }
+
+  function toOnDevicePair({ sourceLanguage, targetLanguage }) {
+    return {
+      sourceLanguage: toOnDeviceLanguageCode(sourceLanguage),
+      targetLanguage: toOnDeviceLanguageCode(targetLanguage),
+    };
+  }
+
   const now = () => Date.now();
   const uid = () => now().toString(36) + Math.random().toString(36).slice(2, 8);
   const escapeRegExp = (s) => (s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -645,6 +659,8 @@
     shuffle,
     LANGUAGES,
     POPULAR_LANGUAGES,
+    toOnDeviceLanguageCode,
+    toOnDevicePair,
     getConfig,
     setConfig,
     getHosts,
