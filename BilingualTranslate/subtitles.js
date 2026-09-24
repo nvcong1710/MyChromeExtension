@@ -1077,6 +1077,9 @@
   let translatorInitPromise = null;
   let translatorPairKey = "";
   let translationConfigVersion = 0;
+  const localTranslatorFailureUntil = new Map();
+  const LOCAL_TRANSLATOR_RETRY_MS = 5 * 60 * 1000;
+  let forcedCloudPairKey = "";
 
   function snapshotSubtitleTranslationConfig() {
     return {
@@ -1175,22 +1178,32 @@
       src: detail.sourceLanguage || cfg.src,
       tgt: detail.targetLanguage || cfg.tgt,
     });
+    forcedCloudPairKey = detail.preferCloud
+      ? `${cfg.src || "en"}->${cfg.tgt || "vi"}`
+      : "";
+    if (detail.localModelReady) {
+      localTranslatorFailureUntil.delete(`${cfg.src || "en"}->${cfg.tgt || "vi"}`);
+    }
   });
 
   // ── Translation Pipeline ──────────────────────────────────────────────────
   async function getOnDeviceTranslator(requestConfig = snapshotSubtitleTranslationConfig()) {
     if (!isCurrentSubtitleConfig(requestConfig)) throw new Error("STALE_CONFIG");
     const key = `${requestConfig.sourceLanguage}->${requestConfig.targetLanguage}`;
+    if (forcedCloudPairKey === key) throw new Error("CLOUD_ONLY");
+    const retryAt = localTranslatorFailureUntil.get(key) || 0;
+    if (retryAt > Date.now()) throw new Error("LOCAL_MODEL_COOLDOWN");
+    if (retryAt) localTranslatorFailureUntil.delete(key);
     if (onDeviceTranslator && translatorPairKey === key) return onDeviceTranslator;
     if (translatorInitPromise && translatorPairKey === key) return translatorInitPromise;
     if (onDeviceTranslator || translatorInitPromise) invalidateSubtitleTranslator();
 
     const pendingTranslator = (async () => {
       if (typeof Translator === "undefined") throw new Error("NO_ON_DEVICE_API");
-      const t = await Translator.create({
+      const t = await Translator.create(F.toOnDevicePair({
         sourceLanguage: requestConfig.sourceLanguage,
         targetLanguage: requestConfig.targetLanguage,
-      });
+      }));
       if (!isCurrentSubtitleConfig(requestConfig)) {
         throw new Error("STALE_CONFIG");
       }
@@ -1199,6 +1212,14 @@
     })();
     translatorInitPromise = pendingTranslator;
     translatorPairKey = key;
+    pendingTranslator.then(
+      () => localTranslatorFailureUntil.delete(key),
+      (error) => {
+        if (error?.message !== "STALE_CONFIG") {
+          localTranslatorFailureUntil.set(key, Date.now() + LOCAL_TRANSLATOR_RETRY_MS);
+        }
+      }
+    );
     pendingTranslator.catch(() => {
       if (translatorInitPromise === pendingTranslator) {
         translatorInitPromise = null;

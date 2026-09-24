@@ -48,6 +48,9 @@
   let transColor = "";
   let translatorPromise = null;
   let translatorPairKey = "";
+  const localTranslatorFailureUntil = new Map();
+  const LOCAL_TRANSLATOR_RETRY_MS = 5 * 60 * 1000;
+  let forcedCloudPairKey = "";
   let translationConfigVersion = 0;
   let io = null;
   let mo = null;
@@ -134,15 +137,19 @@
   async function getTranslator(requestConfig = snapshotTranslationConfig()) {
     if (!isCurrentTranslationConfig(requestConfig)) throw new Error("STALE_CONFIG");
     const key = `${requestConfig.sourceLanguage}->${requestConfig.targetLanguage}`;
+    if (forcedCloudPairKey === key) throw new Error("CLOUD_ONLY");
+    const retryAt = localTranslatorFailureUntil.get(key) || 0;
+    if (retryAt > Date.now()) throw new Error("LOCAL_MODEL_COOLDOWN");
+    if (retryAt) localTranslatorFailureUntil.delete(key);
     if (translatorPromise && translatorPairKey === key) return translatorPromise;
     if (translatorPromise) invalidateTranslator();
 
     const pendingTranslator = (async () => {
       if (typeof Translator === "undefined") throw new Error("NO_API");
-      const opts = {
+      const opts = F.toOnDevicePair({
         sourceLanguage: requestConfig.sourceLanguage,
         targetLanguage: requestConfig.targetLanguage,
-      };
+      });
       return Translator.create({
         ...opts,
         monitor(m) {
@@ -157,6 +164,14 @@
     })();
     translatorPromise = pendingTranslator;
     translatorPairKey = key;
+    pendingTranslator.then(
+      () => localTranslatorFailureUntil.delete(key),
+      (error) => {
+        if (error?.message !== "STALE_CONFIG") {
+          localTranslatorFailureUntil.set(key, Date.now() + LOCAL_TRANSLATOR_RETRY_MS);
+        }
+      }
+    );
     pendingTranslator.catch(() => {
       if (translatorPromise === pendingTranslator) {
         translatorPromise = null; // don't cache failures — allow retry
@@ -369,14 +384,19 @@
   async function prepare() {
     const requestConfig = snapshotTranslationConfig();
     try {
+      const requestKey = `${requestConfig.sourceLanguage}->${requestConfig.targetLanguage}`;
+      if (forcedCloudPairKey === requestKey) {
+        startTranslating(requestConfig);
+        return;
+      }
       if (typeof Translator === "undefined") {
         startTranslating(requestConfig);
         return;
       }
-      const opts = {
+      const opts = F.toOnDevicePair({
         sourceLanguage: requestConfig.sourceLanguage,
         targetLanguage: requestConfig.targetLanguage,
-      };
+      });
       let availability = "unavailable";
       try {
         availability = await Translator.availability(opts).catch(() => "unavailable");
@@ -463,15 +483,19 @@
     }
   }
 
-  async function reapply() {
+  async function reapply({ localModelReady = false, preferCloud = false } = {}) {
     const cfg = await F.getConfig();
     applyRuntimeConfig(cfg);
+    forcedCloudPairKey = preferCloud ? `${srcLang}->${tgtLang}` : "";
+    if (localModelReady) localTranslatorFailureUntil.delete(`${srcLang}->${tgtLang}`);
     try {
       window.dispatchEvent(new CustomEvent("vimi:translation-config-applied", {
         detail: {
           sourceLanguage: srcLang,
           targetLanguage: tgtLang,
           version: translationConfigVersion,
+          localModelReady,
+          preferCloud,
         },
       }));
     } catch {}
@@ -951,7 +975,10 @@
       });
     }
     else if (req.type === "BT_RELOAD") {
-      reapply().then((config) => {
+      reapply({
+        localModelReady: !!req.localModelReady,
+        preferCloud: !!req.preferCloud,
+      }).then((config) => {
         sendResponse({
           ok: true,
           sourceLanguage: config.sourceLanguage,
