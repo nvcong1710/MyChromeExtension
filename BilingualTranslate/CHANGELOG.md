@@ -1,5 +1,17 @@
 # Vimi Bilingual — Changelog
 
+## v2.1.4
+
+### Improved — Translation model fallback
+- Simplified the model action to download locally first, then offer cloud
+  translation only when the local model is unavailable or fails to download.
+- Apply cloud fallback consistently to page translation, selected text, and
+  bilingual video subtitles.
+- Avoid repeatedly creating a failed local translator for the same language
+  pair, while allowing users to retry the download after changing languages.
+- Normalize Traditional Chinese language codes for the on-device API and show
+  clearer model download errors.
+
 ## v2.1.3
 
 ### Improved — Language model controls
