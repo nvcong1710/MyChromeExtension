@@ -16,6 +16,11 @@ const modelStatusText = $("modelStatusText");
 const modelAction = $("modelAction");
 const modelActionIcon = $("modelActionIcon");
 const modelActionText = $("modelActionText");
+const popupTabButtons = [$("translateTab"), $("progressTab")];
+const popupTabPanels = {
+  translate: $("translatePanel"),
+  progress: $("progressPanel"),
+};
 
 const MODEL_ICONS = Object.freeze({
   check: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>',
@@ -35,7 +40,23 @@ let languageSaveQueue = Promise.resolve();
 let appliedPair = null;
 let languageSelectionDirty = false;
 let currentModelState = "checking";
+let activePopupTab = "translate";
 const modelDownloads = new Map();
+
+function showPopupTab(nextTab) {
+  if (!popupTabPanels[nextTab]) return;
+  activePopupTab = nextTab;
+  for (const button of popupTabButtons) {
+    const isActive = button.dataset.popupTab === activePopupTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  }
+  for (const [name, panel] of Object.entries(popupTabPanels)) {
+    const isActive = name === activePopupTab;
+    panel.hidden = !isActive;
+    panel.classList.toggle("hidden", !isActive);
+  }
+}
 
 function fill(sel) {
   sel.innerHTML = "";
@@ -120,9 +141,9 @@ function renderModelState(state) {
     ready: { status: "Model ready", icon: "check", tone: "ready", action: "Refresh", actionIcon: "refresh", actionType: "apply", disabled: false },
     required: { status: "Model required", icon: "required", tone: "required", action: "Download model", actionIcon: "download", actionType: "download", disabled: false },
     downloading: { status: "Downloading model…", icon: "spinner", tone: "required", action: "Downloading…", actionIcon: "spinner", actionType: "none", disabled: true },
-    cloud: { status: "Local model unavailable · Use cloud", icon: "cloud", tone: "neutral", action: "Use cloud", actionIcon: "refresh", actionType: "apply", disabled: false },
-    checkFailed: { status: "Model check failed · Use cloud", icon: "cloud", tone: "neutral", action: "Use cloud", actionIcon: "refresh", actionType: "apply", disabled: false },
-    downloadFailed: { status: "Model download failed · Use cloud", icon: "unavailable", tone: "error", action: "Use cloud", actionIcon: "refresh", actionType: "apply", disabled: false },
+    cloud: { status: "Cloud translation required", icon: "cloud", tone: "neutral", action: "Use cloud", actionIcon: "refresh", actionType: "apply", disabled: false },
+    checkFailed: { status: "Cloud translation required", icon: "cloud", tone: "neutral", action: "Use cloud", actionIcon: "refresh", actionType: "apply", disabled: false },
+    downloadFailed: { status: "Model download failed", icon: "unavailable", tone: "error", action: "Use cloud", actionIcon: "refresh", actionType: "apply", disabled: false },
   };
   currentModelState = states[state] ? state : "cloud";
   const view = { ...(states[currentModelState]) };
@@ -133,7 +154,8 @@ function renderModelState(state) {
     view.tone = "required";
   }
   if (!needsApply && view.actionType === "apply" && currentModelState !== "ready") {
-    view.action = "Refresh with cloud";
+    view.status = "Using cloud model";
+    view.action = "Refresh";
   }
   modelStatus.dataset.tone = view.tone;
   modelStatusIcon.innerHTML = MODEL_ICONS[view.icon] || "";
@@ -330,6 +352,11 @@ async function init() {
 }
 
 power.addEventListener("change", () => send("BT_TOGGLE"));
+
+for (const button of popupTabButtons) {
+  button.addEventListener("click", () => showPopupTab(button.dataset.popupTab));
+}
+showPopupTab("translate");
 
 // Show/hide the mascot. Open tabs react live via mascot.js's storage listener.
 $("mascot").addEventListener("change", () => {
