@@ -143,18 +143,18 @@
     </main>
 
     <footer class="popup-footer">
-      <aside class="flex items-center justify-between gap-2.5 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-slate-800 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-100">
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="shrink-0 text-base">📄</span>
-          <div class="min-w-0 text-[11.5px] leading-tight">
-            <div class="truncate font-bold text-brand-700 dark:text-brand-400">Translate local files?</div>
-            <div class="truncate text-[10.5px] text-slate-500 dark:text-slate-400">Open PDF, Word &amp; Excel in Doc2Notion</div>
+      <aside class="local-files-banner">
+        <div class="flex min-w-0 items-center gap-2.5">
+          <span class="shrink-0 text-lg">📄</span>
+          <div class="min-w-0 leading-tight">
+            <div class="local-files-title truncate">Translate local files?</div>
+            <div class="local-files-description truncate">Open PDF, Word &amp; Excel in Doc2Notion</div>
           </div>
         </div>
         <button id="openDoc2Notion" title="Open Doc2Notion (https://doc2-notion.vercel.app/)"
-          class="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition hover:bg-brand-700">
+          class="local-files-action inline-flex shrink-0 items-center font-bold text-white">
           <span>Open</span>
-          <span class="text-[10px]">↗</span>
+          <span class="local-files-action-icon" aria-hidden="true">↗</span>
         </button>
       </aside>
     </footer>
