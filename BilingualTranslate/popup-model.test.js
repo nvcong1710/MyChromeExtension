@@ -43,6 +43,7 @@ function makeElement(id = "") {
     appendChild(child) { this.children.push(child); return child; },
     querySelector() { return null; },
     remove() {},
+    setAttribute(name, value) { this[name] = String(value); },
     emit(type, event = {}) {
       return (handlers.get(type) || []).map((handler) => handler(event));
     },
@@ -54,9 +55,11 @@ function makeHarness({ initialAvailability = "available", availability } = {}) {
     "power", "src", "tgt", "modelStatus", "modelStatusIcon", "modelStatusText",
     "modelAction", "modelActionIcon", "modelActionText", "host", "mascot", "videoSub",
     "dueNum", "goalNum", "totalNum", "streakNum", "review", "test", "testNote", "swap",
-    "opts", "openDoc2Notion",
+    "opts", "openDoc2Notion", "translateTab", "progressTab", "translatePanel", "progressPanel",
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, makeElement(id)]));
+  elements.translateTab.dataset.popupTab = "translate";
+  elements.progressTab.dataset.popupTab = "progress";
   const messages = [];
   const savedConfigs = [];
   const creates = [];
@@ -134,6 +137,41 @@ test("popup checks the saved language pair on open and renders available state",
   assert.deepEqual(calls, [{ sourceLanguage: "en", targetLanguage: "vi" }]);
   assert.equal(app.elements.modelStatusText.textContent, "Model ready");
   assert.equal(app.elements.modelActionText.textContent, "Refresh");
+});
+
+test("switching popup tabs keeps translation controls unchanged", async () => {
+  const app = makeHarness();
+  await flush();
+  app.elements.src.value = "ja";
+  app.elements.power.checked = true;
+
+  app.elements.progressTab.emit("click");
+  assert.equal(app.elements.progressPanel.hidden, false);
+  assert.equal(app.elements.translatePanel.hidden, true);
+  assert.equal(app.elements.src.value, "ja");
+  assert.equal(app.elements.power.checked, true);
+
+  app.elements.translateTab.emit("click");
+  assert.equal(app.elements.translatePanel.hidden, false);
+  assert.equal(app.elements.progressPanel.hidden, true);
+  assert.equal(app.elements.src.value, "ja");
+  assert.equal(app.elements.power.checked, true);
+});
+
+test("popup keeps translation, progress and shared footer content in separate regions", () => {
+  const html = fs.readFileSync(path.join(__dirname, "popup.html"), "utf8");
+  const translatePanel = html.indexOf('id="translatePanel"');
+  const progressPanel = html.indexOf('id="progressPanel"');
+  const sharedTip = html.indexOf("Tip: highlight any word");
+  const localFiles = html.indexOf('id="openDoc2Notion"');
+  const shortcut = html.indexOf("to toggle translation");
+
+  assert.ok(translatePanel < html.indexOf('id="power"'));
+  assert.ok(html.indexOf('id="videoSub"') < progressPanel);
+  assert.ok(progressPanel < html.indexOf('id="streakNum"'));
+  assert.ok(html.indexOf('id="testNote"') < sharedTip);
+  assert.ok(sharedTip < shortcut);
+  assert.ok(shortcut < localFiles);
 });
 
 test("downloadable model downloads once and becomes ready", async () => {
@@ -218,9 +256,21 @@ test("a stale availability response cannot overwrite the current pair", async ()
 test("unsupported pairs keep cloud translation available", async () => {
   const app = makeHarness({ initialAvailability: "unavailable" });
   await flush();
-  assert.equal(app.elements.modelStatusText.textContent, "Local model unavailable · Use cloud");
-  assert.equal(app.elements.modelActionText.textContent, "Refresh with cloud");
+  assert.equal(app.elements.modelStatusText.textContent, "Using cloud model");
+  assert.equal(app.elements.modelActionText.textContent, "Refresh");
   assert.equal(app.creates.length, 0);
+});
+
+test("a newly selected unsupported pair offers cloud translation", async () => {
+  const app = makeHarness();
+  await flush();
+  app.Translator.availability = async () => "unavailable";
+  app.elements.src.value = "ja";
+
+  await Promise.all(app.elements.src.emit("change"));
+  await flush();
+  assert.equal(app.elements.modelStatusText.textContent, "Cloud translation required");
+  assert.equal(app.elements.modelActionText.textContent, "Use cloud");
 });
 
 test("a failed model download still allows applying with cloud", async () => {
@@ -239,7 +289,7 @@ test("a failed model download still allows applying with cloud", async () => {
 
   app.elements.modelAction.emit("click");
   await flush();
-  assert.equal(app.elements.modelStatusText.textContent, "Model download failed · Use cloud");
+  assert.equal(app.elements.modelStatusText.textContent, "Model download failed");
   assert.equal(app.elements.modelActionText.textContent, "Use cloud");
 
   await Promise.all(app.elements.modelAction.emit("click"));
@@ -247,8 +297,8 @@ test("a failed model download still allows applying with cloud", async () => {
   const reload = app.messages.find((message) => message.type === "BT_RELOAD");
   assert.equal(reload.preferCloud, true);
   assert.equal(reload.localModelReady, false);
-  assert.equal(app.elements.modelStatusText.textContent, "Model download failed · Use cloud");
-  assert.equal(app.elements.modelActionText.textContent, "Refresh with cloud");
+  assert.equal(app.elements.modelStatusText.textContent, "Using cloud model");
+  assert.equal(app.elements.modelActionText.textContent, "Refresh");
 
   app.elements.src.value = "en";
   await Promise.all(app.elements.src.emit("change"));
