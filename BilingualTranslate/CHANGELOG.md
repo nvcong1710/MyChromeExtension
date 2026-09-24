@@ -1,5 +1,13 @@
 # Vimi Bilingual — Changelog
 
+## v2.1.5
+
+### Improved — Extension popup
+- Split the popup into Translate and Progress tabs while keeping translation
+  settings intact when switching between them.
+- Refined the popup layout, scrolling, language controls, and model status text.
+- Moved the local file translation link into a persistent footer.
+
 ## v2.1.4
 
 ### Improved — Translation model fallback
